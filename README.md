@@ -1,4 +1,4 @@
-# Revolve
+# Revive
 
-An out-of-order superscalar RISC-V core
+An in-order superscalar RISC-V core
 
