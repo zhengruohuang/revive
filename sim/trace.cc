@@ -115,87 +115,6 @@ struct InstrEncode
             uint32_t aq     : 1;
             uint32_t func5  : 5;
         } typeAMO;
-        
-//        struct {
-//            uint32_t quad   : 2;
-//            uint32_t rs2    : 5;
-//            uint32_t rdrs1  : 5;
-//            uint32_t func1  : 1;
-//            uint32_t func3  : 4;
-//            uint32_t        : 16;
-//        } typeCR;
-//        
-//        struct {
-//            uint32_t quad   : 2;
-//            uint32_t imm1   : 5;
-//            uint32_t rdrs1  : 5;
-//            uint32_t imm2   : 1;
-//            uint32_t func3  : 3;
-//            uint32_t        : 16;
-//        } typeCI;
-//        
-//        struct {
-//            uint32_t quad   : 2;
-//            uint32_t rs2    : 5;
-//            uint32_t imm    : 6;
-//            uint32_t func3  : 3;
-//            uint32_t        : 16;
-//        } typeCSS;
-//        
-//        struct {
-//            uint32_t quad   : 2;
-//            uint32_t rdp    : 3;
-//            uint32_t imm    : 8;
-//            uint32_t func3  : 3;
-//            uint32_t        : 16;
-//        } typeCIW;
-//        
-//        struct {
-//            uint32_t quad   : 2;
-//            uint32_t rdp    : 3;
-//            uint32_t imm1   : 2;
-//            uint32_t rs1p   : 3;
-//            uint32_t imm2   : 3;
-//            uint32_t func3  : 3;
-//            uint32_t        : 16;
-//        } typeCL;
-//        
-//        struct {
-//            uint32_t quad   : 2;
-//            uint32_t rs2p   : 3;
-//            uint32_t imm1   : 2;
-//            uint32_t rs1p   : 3;
-//            uint32_t imm2   : 3;
-//            uint32_t func3  : 3;
-//            uint32_t        : 16;
-//        } typeCS;
-//        
-//        struct {
-//            uint32_t quad   : 2;
-//            uint32_t rs2p   : 3;
-//            uint32_t func2  : 2;
-//            uint32_t rdrs1p : 3;
-//            uint32_t func22 : 2;
-//            uint32_t func1  : 1;
-//            uint32_t func3  : 3;
-//            uint32_t        : 16;
-//        } typeCA;
-//        
-//        struct {
-//            uint32_t quad   : 2;
-//            uint32_t imm1   : 5;
-//            uint32_t rs1p   : 3;
-//            uint32_t imm2   : 3;
-//            uint32_t func3  : 3;
-//            uint32_t        : 16;
-//        } typeCB;
-//        
-//        struct {
-//            uint32_t quad   : 2;
-//            uint32_t imm    : 11;
-//            uint32_t func3  : 3;
-//            uint32_t        : 16;
-//        } typeCJ;
     };
 };
 
@@ -906,24 +825,20 @@ TraceSimDriver::executeQ2(InstrEncode &encode)
     switch (encode.cfunc3) {
     case 0b000: // C.SLLI
         // slli rd, rd, shamt[5:0]
-        //EXECUTE_ALU(encode.typeCI.rdrs1, readGPRu(encode.typeCI.rdrs1), extendImmCSLLI(encode), OP_SLL, false);
         EXECUTE_ALU(encode.crdrs1, readGPRu(encode.crdrs1), extendImmCSLLI(encode), OP_SLL, false);
         break;
     case 0b010: // C.LWSP
         // lw rd, offset[7:2](x2)
-        //EXECUTE_LD(encode.typeCI.rdrs1, readGPRu(2), extendImmCLWSP(encode), true, 2);
         EXECUTE_LD(encode.crdrs1, readGPRu(2), extendImmCLWSP(encode), true, 2);
         break;
     case 0b100: // C.JR/C.MV/C.EBREAK/C.JALR/C.ADD
         if (encode.crdrs1 && encode.crs2) { // func1 ? C.ADD : C.MV
             // 1 ~ C.ADD -> add rd, rd, rs2
             // 0 ~ C.MV  -> add rd, x0, rs2
-            //EXECUTE_ALU(encode.typeCR.rdrs1, encode.typeCR.func1 ? readGPRu(encode.typeCR.rdrs1) : 0, readGPRu(encode.typeCR.rs2), OP_ADD, false);
             EXECUTE_ALU(encode.crdrs1, encode.cfunc1 ? readGPRu(encode.crdrs1) : 0, readGPRu(encode.crs2), OP_ADD, false);
         } else if (encode.crdrs1) { // func1 ? C.JALR : C.JR
             // 1 ~ C.JALR -> jalr x1, 0(rs1)
             // 0 ~ C.JR   -> jalr x0, 0(rs1)
-            //EXECUTE_JAL(encode.typeCR.func1 ? 1 : 0, readGPRu(encode.typeCR.rdrs1), 0);
             EXECUTE_JAL(encode.cfunc1 ? 1 : 0, readGPRu(encode.crdrs1), 0);
         } else { // C.EBREAK
             EXECUTE_UNKNOWN(encode);
@@ -931,7 +846,6 @@ TraceSimDriver::executeQ2(InstrEncode &encode)
         break;
     case 0b110: // C.SWSP
         // sw rs2, offset[7:2](x2)
-        //EXECUTE_ST(readGPRu(encode.typeCSS.rs2), readGPRu(2), extendImmCSWSP(encode), 2);
         EXECUTE_ST(readGPRu(encode.crs2), readGPRu(2), extendImmCSWSP(encode), 2);
         break;
     default:
@@ -948,7 +862,6 @@ TraceSimDriver::executeQ1(InstrEncode &encode)
     switch (encode.cfunc3) {
     case 0b000: // C.NOP/C.ADDI
         // addi rd, rd, nzimm[5:0]
-        //EXECUTE_ALU(encode.typeCI.rdrs1, readGPRu(encode.typeCI.rdrs1), extendImmCADDI(encode), OP_ADD, false);
         EXECUTE_ALU(encode.crdrs1, readGPRu(encode.crdrs1), extendImmCADDI(encode), OP_ADD, false);
         break;
     case 0b001: // C.JAL
@@ -957,7 +870,6 @@ TraceSimDriver::executeQ1(InstrEncode &encode)
         break;
     case 0b010: // C.LI
         // addi rd, x0, imm[5:0]
-        //EXECUTE_ALU(encode.typeCI.rdrs1, 0, extendImmCADDI(encode), OP_ADD, false);
         EXECUTE_ALU(encode.crdrs1, 0, extendImmCADDI(encode), OP_ADD, false);
         break;
     case 0b011: // C.ADDI16SP/C.LUI
@@ -966,7 +878,6 @@ TraceSimDriver::executeQ1(InstrEncode &encode)
         if (encode.crdrs1 == 2) {
             EXECUTE_ALU(2, readGPRu(2), extendImmCADDI16SP(encode), OP_ADD, false);
         } else {
-            //EXECUTE_ALU(encode.typeCI.rdrs1, 0, extendImmCLUI(encode), OP_ADD, false);
             EXECUTE_ALU(encode.crdrs1, 0, extendImmCLUI(encode), OP_ADD, false);
         }
         break;
@@ -974,39 +885,32 @@ TraceSimDriver::executeQ1(InstrEncode &encode)
         switch (encode.cfunc22) {
         case 0b00:  // C.SRLI
             // srli rd', rd', shamt[5:0]
-            //EXECUTE_ALU(encode.typeCA.rdrs1p + 8, readGPRu(encode.typeCA.rdrs1p + 8), extendImmCSRL(encode), OP_SRL, false);
             EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), extendImmCSRL(encode), OP_SRL, false);
             break;
         case 0b01:  // C.SRAI
             // srai rd', rd', shamt[5:0]
-            //EXECUTE_ALU(encode.typeCA.rdrs1p + 8, readGPRu(encode.typeCA.rdrs1p + 8), extendImmCSRL(encode), OP_SRA, false);
             EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), extendImmCSRL(encode), OP_SRA, false);
             break;
         case 0b10:  // C.ANDI
             // andi rd',rd', imm[5:0]
-            //EXECUTE_ALU(encode.typeCA.rdrs1p + 8, readGPRu(encode.typeCA.rdrs1p + 8), extendImmCADDI(encode), OP_AND, false);
             EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), extendImmCADDI(encode), OP_AND, false);
             break;
         case 0b11:  // ALU
             switch (encode.cfunc21) {
             case 0b00:  // C.SUB
                 // sub rd', rd', rs2'
-                //EXECUTE_ALU(encode.typeCA.rdrs1p + 8, readGPRu(encode.typeCA.rdrs1p + 8), readGPRu(encode.typeCA.rs2p + 8), OP_SUB, false);
                 EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), readGPRu(encode.crdrs2p + 8), OP_SUB, false);
                 break;
             case 0b01:  // C.XOR
                 // xor rd', rd', rs2'
-                //EXECUTE_ALU(encode.typeCA.rdrs1p + 8, readGPRu(encode.typeCA.rdrs1p + 8), readGPRu(encode.typeCA.rs2p + 8), OP_XOR, false);
                 EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), readGPRu(encode.crdrs2p + 8), OP_XOR, false);
                 break;
             case 0b10:  // C.OR
                 // or rd', rd', rs2'
-                //EXECUTE_ALU(encode.typeCA.rdrs1p + 8, readGPRu(encode.typeCA.rdrs1p + 8), readGPRu(encode.typeCA.rs2p + 8), OP_OR, false);
                 EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), readGPRu(encode.crdrs2p + 8), OP_OR, false);
                 break;
             case 0b11:  // C.AND
                 // and rd', rd', rs2'
-                //EXECUTE_ALU(encode.typeCA.rdrs1p + 8, readGPRu(encode.typeCA.rdrs1p + 8), readGPRu(encode.typeCA.rs2p + 8), OP_AND, false);
                 EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), readGPRu(encode.crdrs2p + 8), OP_AND, false);
                 break;
             default:
@@ -1025,12 +929,10 @@ TraceSimDriver::executeQ1(InstrEncode &encode)
         break;
     case 0b110: // C.BEQZ
         // beq rs1', x0, offset[8:1]
-        //EXECUTE_BRANCH(readGPRi(encode.typeCB.rs1p + 8), 0, extendImmCB(encode), ==);
         EXECUTE_BRANCH(readGPRi(encode.crdrs1p + 8), 0, extendImmCB(encode), ==);
         break;
     case 0b111: // C.BNEZ
         // bne rs1', x0, offset[8:1]
-        //EXECUTE_BRANCH(readGPRi(encode.typeCB.rs1p + 8), 0, extendImmCB(encode), !=);
         EXECUTE_BRANCH(readGPRi(encode.crdrs1p + 8), 0, extendImmCB(encode), !=);
         break;
     default:
@@ -1047,17 +949,14 @@ TraceSimDriver::executeQ0(InstrEncode &encode)
     switch (encode.cfunc3) {
     case 0b000: // C.ADDI4SPN
         // addi rd', x2, nzuimm[9:2]
-        //EXECUTE_ALU(encode.typeCIW.rdp + 8, readGPRu(2), extendImmCADDI4SPN(encode), OP_ADD, false);
         EXECUTE_ALU(encode.crdrs2p + 8, readGPRu(2), extendImmCADDI4SPN(encode), OP_ADD, false);
         break;
     case 0b010: // C.LW
         // lw rd', offset[6:2](rs1')
-        //EXECUTE_LD(encode.typeCL.rdp + 8, readGPRu(encode.typeCL.rs1p + 8), extendImmCLWSW(encode), true, 2);
         EXECUTE_LD(encode.crdrs2p + 8, readGPRu(encode.crdrs1p + 8), extendImmCLWSW(encode), true, 2);
         break;
     case 0b110: // C.SW
         // sw rs2',offset[6:2](rs1')
-        //EXECUTE_ST(readGPRu(encode.typeCS.rs2p + 8), readGPRu(encode.typeCS.rs1p + 8), extendImmCLWSW(encode), 2);
         EXECUTE_ST(readGPRu(encode.crdrs2p + 8), readGPRu(encode.crdrs1p + 8), extendImmCLWSW(encode), 2);
         break;
     default:
