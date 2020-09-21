@@ -299,18 +299,5 @@ module revive (
     
     assign  to_ls_flush         = from_wb_flush;
 
-    //--------------------------------------------------------------------------
-    // Cycle count
-    //--------------------------------------------------------------------------
-    logic [63:0] cycle_count;
-    
-    always_ff @ (posedge i_clk) begin
-        if (~i_rst_n) begin
-            cycle_count <= '0;
-        end else begin
-            cycle_count <= cycle_count + '1;
-        end
-    end
-
 endmodule
 
