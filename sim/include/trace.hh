@@ -25,8 +25,7 @@ private:
     uint64_t numInstrs;
     TraceMachineState state;
     
-    uint32_t readGPRu(int idx) { return idx ? state.gpr[idx] : 0; }
-    int32_t readGPRi(int idx) { return idx ? (int32_t)state.gpr[idx] : 0; }
+    uint32_t readGPR(int idx) { return idx ? state.gpr[idx] : 0; }
     void writeGPR(int idx, uint32_t value) { state.gpr[idx] = idx ? value : 0; }
     
     void trace(uint64_t pc, InstrEncode &encode,

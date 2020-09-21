@@ -595,27 +595,27 @@ TraceSimDriver::executeG(InstrEncode &encode)
         EXECUTE_JAL(encode.rd, state.pc, extendImmTypeJ(encode));
         break;
     case 0b1100111: // JALR
-        EXECUTE_JAL(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode));
+        EXECUTE_JAL(encode.rd, readGPR(encode.rs1), extendImmTypeI(encode));
         break;
     case 0b1100011: // BEQ/BNE/BLT/BGE/BLTU/BGEU
         switch (encode.func3) {
         case 0b000: // BEQ
-            EXECUTE_BRANCH(readGPRi(encode.rs1), readGPRi(encode.rs2), OP_EQ, extendImmTypeB(encode));
+            EXECUTE_BRANCH(readGPR(encode.rs1), readGPR(encode.rs2), OP_EQ, extendImmTypeB(encode));
             break;
         case 0b001: // BNE
-            EXECUTE_BRANCH(readGPRi(encode.rs1), readGPRi(encode.rs2), OP_NE, extendImmTypeB(encode));
+            EXECUTE_BRANCH(readGPR(encode.rs1), readGPR(encode.rs2), OP_NE, extendImmTypeB(encode));
             break;
         case 0b100: // BLT
-            EXECUTE_BRANCH(readGPRi(encode.rs1), readGPRi(encode.rs2), OP_LT, extendImmTypeB(encode));
+            EXECUTE_BRANCH(readGPR(encode.rs1), readGPR(encode.rs2), OP_LT, extendImmTypeB(encode));
             break;
         case 0b101: // BGE
-            EXECUTE_BRANCH(readGPRi(encode.rs1), readGPRi(encode.rs2), OP_GE, extendImmTypeB(encode));
+            EXECUTE_BRANCH(readGPR(encode.rs1), readGPR(encode.rs2), OP_GE, extendImmTypeB(encode));
             break;
         case 0b110: // BLTU
-            EXECUTE_BRANCH(readGPRu(encode.rs1), readGPRu(encode.rs2), OP_LTU, extendImmTypeB(encode));
+            EXECUTE_BRANCH(readGPR(encode.rs1), readGPR(encode.rs2), OP_LTU, extendImmTypeB(encode));
             break;
         case 0b111: // BGEU
-            EXECUTE_BRANCH(readGPRu(encode.rs1), readGPRu(encode.rs2), OP_GEU, extendImmTypeB(encode));
+            EXECUTE_BRANCH(readGPR(encode.rs1), readGPR(encode.rs2), OP_GEU, extendImmTypeB(encode));
             break;
         default:
             EXECUTE_UNKNOWN(encode);
@@ -625,19 +625,19 @@ TraceSimDriver::executeG(InstrEncode &encode)
     case 0b0000011: // LB/LH/LW/LBU/LHU
         switch (encode.func3) {
         case 0b000: // LB
-            EXECUTE_LD(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), true, 0);
+            EXECUTE_LD(encode.rd, readGPR(encode.rs1), extendImmTypeI(encode), true, 0);
             break;
         case 0b001: // LH
-            EXECUTE_LD(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), true, 1);
+            EXECUTE_LD(encode.rd, readGPR(encode.rs1), extendImmTypeI(encode), true, 1);
             break;
         case 0b010: // LW
-            EXECUTE_LD(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), true, 2);
+            EXECUTE_LD(encode.rd, readGPR(encode.rs1), extendImmTypeI(encode), true, 2);
             break;
         case 0b100: // LBU
-            EXECUTE_LD(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), false, 0);
+            EXECUTE_LD(encode.rd, readGPR(encode.rs1), extendImmTypeI(encode), false, 0);
             break;
         case 0b101: // LHU
-            EXECUTE_LD(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), false, 1);
+            EXECUTE_LD(encode.rd, readGPR(encode.rs1), extendImmTypeI(encode), false, 1);
             break;
         default:
             EXECUTE_UNKNOWN(encode);
@@ -647,13 +647,13 @@ TraceSimDriver::executeG(InstrEncode &encode)
     case 0b0100011: // SB/SH/SW
         switch (encode.func3) {
         case 0b000: // SB
-            EXECUTE_ST(readGPRu(encode.rs2), readGPRu(encode.rs1), extendImmTypeS(encode), 0);
+            EXECUTE_ST(readGPR(encode.rs2), readGPR(encode.rs1), extendImmTypeS(encode), 0);
             break;
         case 0b001: // SH
-            EXECUTE_ST(readGPRu(encode.rs2), readGPRu(encode.rs1), extendImmTypeS(encode), 1);
+            EXECUTE_ST(readGPR(encode.rs2), readGPR(encode.rs1), extendImmTypeS(encode), 1);
             break;
         case 0b010: // SW
-            EXECUTE_ST(readGPRu(encode.rs2), readGPRu(encode.rs1), extendImmTypeS(encode), 2);
+            EXECUTE_ST(readGPR(encode.rs2), readGPR(encode.rs1), extendImmTypeS(encode), 2);
             break;
         default:
             EXECUTE_UNKNOWN(encode);
@@ -663,31 +663,31 @@ TraceSimDriver::executeG(InstrEncode &encode)
     case 0b0010011: // ADDI/SLTI/SLTU/XORI/ORI/ANDI/SLLLI/SRLI/SRAI
         switch (encode.func3) {
         case 0b000: // ADDI
-            EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), OP_ADD, false);
+            EXECUTE_ALU(encode.rd, readGPR(encode.rs1), extendImmTypeI(encode), OP_ADD, false);
             break;
         case 0b010: // SLTI
-            EXECUTE_ALU(encode.rd, readGPRi(encode.rs1), (int32_t)extendImmTypeI(encode), OP_SLT, false);
+            EXECUTE_ALU(encode.rd, readGPR(encode.rs1), (int32_t)extendImmTypeI(encode), OP_SLT, false);
             break;
         case 0b011: // SLTIU
-            EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), OP_SLTU, false);
+            EXECUTE_ALU(encode.rd, readGPR(encode.rs1), extendImmTypeI(encode), OP_SLTU, false);
             break;
         case 0b100: // XORI
-            EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), OP_XOR, false);
+            EXECUTE_ALU(encode.rd, readGPR(encode.rs1), extendImmTypeI(encode), OP_XOR, false);
             break;
         case 0b110: // ORI
-            EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), OP_OR, false);
+            EXECUTE_ALU(encode.rd, readGPR(encode.rs1), extendImmTypeI(encode), OP_OR, false);
             break;
         case 0b111: // ANDI
-            EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), OP_AND, false);
+            EXECUTE_ALU(encode.rd, readGPR(encode.rs1), extendImmTypeI(encode), OP_AND, false);
             break;
         case 0b001: // SLLI
-            EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), OP_SLL, false);
+            EXECUTE_ALU(encode.rd, readGPR(encode.rs1), extendImmTypeI(encode), OP_SLL, false);
             break;
         case 0b101: // SRLI/SRAI
             if (encode.value & 0x40000000) // SRAI
-                EXECUTE_ALU(encode.rd, readGPRi(encode.rs1), (int32_t)extendImmTypeI(encode), OP_SRA, false);
+                EXECUTE_ALU(encode.rd, readGPR(encode.rs1), (int32_t)extendImmTypeI(encode), OP_SRA, false);
             else // SRLI
-                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), OP_SRL, false);
+                EXECUTE_ALU(encode.rd, readGPR(encode.rs1), extendImmTypeI(encode), OP_SRL, false);
             break;
         default:
             EXECUTE_UNKNOWN(encode);
@@ -698,28 +698,28 @@ TraceSimDriver::executeG(InstrEncode &encode)
         if (encode.func7 == 0b0000001) { // MUL*/DIV*/REM*
             switch (encode.func3) {
             case 0b000: // MUL
-                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_MUL, false);
+                EXECUTE_ALU(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), OP_MUL, false);
                 break;
             case 0b001: // MULH
-                EXECUTE_MUH(encode.rd, readGPRu(encode.rs1), true, readGPRu(encode.rs2), true, false);
+                EXECUTE_MUH(encode.rd, readGPR(encode.rs1), true, readGPR(encode.rs2), true, false);
                 break;
             case 0b010: // MULHSU
-                EXECUTE_MUH(encode.rd, readGPRu(encode.rs1), true, readGPRu(encode.rs2), false, false);
+                EXECUTE_MUH(encode.rd, readGPR(encode.rs1), true, readGPR(encode.rs2), false, false);
                 break;
             case 0b011: // MULHU
-                EXECUTE_MUH(encode.rd, readGPRu(encode.rs1), false, readGPRu(encode.rs2), false, false);
+                EXECUTE_MUH(encode.rd, readGPR(encode.rs1), false, readGPR(encode.rs2), false, false);
                 break;
             case 0b100: // DIV
-                EXECUTE_ALU(encode.rd, readGPRi(encode.rs1), readGPRi(encode.rs2), OP_DIV, false);
+                EXECUTE_ALU(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), OP_DIV, false);
                 break;
             case 0b101: // DIVU
-                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_DIVU, false);
+                EXECUTE_ALU(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), OP_DIVU, false);
                 break;
             case 0b110: // REM
-                EXECUTE_ALU(encode.rd, readGPRi(encode.rs1), readGPRi(encode.rs2), OP_REM, false);
+                EXECUTE_ALU(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), OP_REM, false);
                 break;
             case 0b111: // REMU
-                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_REMU, false);
+                EXECUTE_ALU(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), OP_REMU, false);
                 break;
             default:
                 EXECUTE_UNKNOWN(encode);
@@ -729,33 +729,33 @@ TraceSimDriver::executeG(InstrEncode &encode)
             switch (encode.func3) {
             case 0b000: // ADD/SUB
                 if (encode.value & 0x40000000) // SUB
-                    EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_SUB, false);
+                    EXECUTE_ALU(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), OP_SUB, false);
                 else // ADD
-                    EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_ADD, false);
+                    EXECUTE_ALU(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), OP_ADD, false);
                 break;
             case 0b010: // SLT
-                EXECUTE_ALU(encode.rd, readGPRi(encode.rs1), readGPRi(encode.rs2), OP_SLT, false);
+                EXECUTE_ALU(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), OP_SLT, false);
                 break;
             case 0b011: // SLTU
-                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_SLTU, false);
+                EXECUTE_ALU(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), OP_SLTU, false);
                 break;
             case 0b100: // XOR
-                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_XOR, false);
+                EXECUTE_ALU(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), OP_XOR, false);
                 break;
             case 0b110: // OR
-                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_OR, false);
+                EXECUTE_ALU(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), OP_OR, false);
                 break;
             case 0b111: // AND
-                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AND, false);
+                EXECUTE_ALU(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), OP_AND, false);
                 break;
             case 0b001: // SLL
-                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_SLL, false);
+                EXECUTE_ALU(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), OP_SLL, false);
                 break;
             case 0b101: // SRL/SRA
                 if (encode.value & 0x40000000) // SRA
-                    EXECUTE_ALU(encode.rd, readGPRi(encode.rs1), readGPRi(encode.rs2), OP_SRA, false);
+                    EXECUTE_ALU(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), OP_SRA, false);
                 else // SRL
-                    EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_SRL, false);
+                    EXECUTE_ALU(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), OP_SRL, false);
                 break;
             default:
                 EXECUTE_UNKNOWN(encode);
@@ -767,37 +767,37 @@ TraceSimDriver::executeG(InstrEncode &encode)
         if (encode.func3 == 0b010) {
             switch (encode.typeAMO.func5) {
             case 0b00010: // LR
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "ll", OP_AMO_LL, OP_AMO_LL, 2);
+                EXECUTE_AMO(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), "ll", OP_AMO_LL, OP_AMO_LL, 2);
                 break;
             case 0b00011: // SC
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "sc", OP_AMO_OK, OP_AMO_SWAP, 2);
+                EXECUTE_AMO(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), "sc", OP_AMO_OK, OP_AMO_SWAP, 2);
                 break;
             case 0b00001: // AMO.SWAP
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "swap", OP_AMO_LL, OP_AMO_SWAP, 2);
+                EXECUTE_AMO(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), "swap", OP_AMO_LL, OP_AMO_SWAP, 2);
                 break;
             case 0b00000: // AMO.ADD
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "add", OP_AMO_LL, OP_ADD, 2);
+                EXECUTE_AMO(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), "add", OP_AMO_LL, OP_ADD, 2);
                 break;
             case 0b00100: // AMO.XOR
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "xor", OP_AMO_LL, OP_XOR, 2);
+                EXECUTE_AMO(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), "xor", OP_AMO_LL, OP_XOR, 2);
                 break;
             case 0b01100: // AMO.AND
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "and", OP_AMO_LL, OP_AND, 2);
+                EXECUTE_AMO(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), "and", OP_AMO_LL, OP_AND, 2);
                 break;
             case 0b01000: // AMO.OR
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "or", OP_AMO_LL, OP_OR, 2);
+                EXECUTE_AMO(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), "or", OP_AMO_LL, OP_OR, 2);
                 break;
             case 0b10000: // AMO.MIN
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "min", OP_AMO_LL, OP_AMO_MIN, 2);
+                EXECUTE_AMO(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), "min", OP_AMO_LL, OP_AMO_MIN, 2);
                 break;
             case 0b11000: // AMO.MINU
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "minu", OP_AMO_LL, OP_AMO_MINU, 2);
+                EXECUTE_AMO(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), "minu", OP_AMO_LL, OP_AMO_MINU, 2);
                 break;
             case 0b10100: // AMO.MAX
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "max", OP_AMO_LL, OP_AMO_MAX, 2);
+                EXECUTE_AMO(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), "max", OP_AMO_LL, OP_AMO_MAX, 2);
                 break;
             case 0b11100: // AMO.MAXU
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "maxu", OP_AMO_LL, OP_AMO_MAXU, 2);
+                EXECUTE_AMO(encode.rd, readGPR(encode.rs1), readGPR(encode.rs2), "maxu", OP_AMO_LL, OP_AMO_MAXU, 2);
                 break;
             default:
                 EXECUTE_UNKNOWN(encode);
@@ -832,28 +832,28 @@ TraceSimDriver::executeQ2(InstrEncode &encode)
     switch (encode.cfunc3) {
     case 0b000: // C.SLLI
         // slli rd, rd, shamt[5:0]
-        EXECUTE_ALU(encode.crdrs1, readGPRu(encode.crdrs1), extendImmCSLLI(encode), OP_SLL, false);
+        EXECUTE_ALU(encode.crdrs1, readGPR(encode.crdrs1), extendImmCSLLI(encode), OP_SLL, false);
         break;
     case 0b010: // C.LWSP
         // lw rd, offset[7:2](x2)
-        EXECUTE_LD(encode.crdrs1, readGPRu(2), extendImmCLWSP(encode), true, 2);
+        EXECUTE_LD(encode.crdrs1, readGPR(2), extendImmCLWSP(encode), true, 2);
         break;
     case 0b100: // C.JR/C.MV/C.EBREAK/C.JALR/C.ADD
         if (encode.crdrs1 && encode.crs2) { // func1 ? C.ADD : C.MV
             // 1 ~ C.ADD -> add rd, rd, rs2
             // 0 ~ C.MV  -> add rd, x0, rs2
-            EXECUTE_ALU(encode.crdrs1, encode.cfunc1 ? readGPRu(encode.crdrs1) : 0, readGPRu(encode.crs2), OP_ADD, false);
+            EXECUTE_ALU(encode.crdrs1, encode.cfunc1 ? readGPR(encode.crdrs1) : 0, readGPR(encode.crs2), OP_ADD, false);
         } else if (encode.crdrs1) { // func1 ? C.JALR : C.JR
             // 1 ~ C.JALR -> jalr x1, 0(rs1)
             // 0 ~ C.JR   -> jalr x0, 0(rs1)
-            EXECUTE_JAL(encode.cfunc1 ? 1 : 0, readGPRu(encode.crdrs1), 0);
+            EXECUTE_JAL(encode.cfunc1 ? 1 : 0, readGPR(encode.crdrs1), 0);
         } else { // C.EBREAK
             EXECUTE_UNKNOWN(encode);
         }
         break;
     case 0b110: // C.SWSP
         // sw rs2, offset[7:2](x2)
-        EXECUTE_ST(readGPRu(encode.crs2), readGPRu(2), extendImmCSWSP(encode), 2);
+        EXECUTE_ST(readGPR(encode.crs2), readGPR(2), extendImmCSWSP(encode), 2);
         break;
     default:
         EXECUTE_UNKNOWN(encode);
@@ -869,7 +869,7 @@ TraceSimDriver::executeQ1(InstrEncode &encode)
     switch (encode.cfunc3) {
     case 0b000: // C.NOP/C.ADDI
         // addi rd, rd, nzimm[5:0]
-        EXECUTE_ALU(encode.crdrs1, readGPRu(encode.crdrs1), extendImmCADDI(encode), OP_ADD, false);
+        EXECUTE_ALU(encode.crdrs1, readGPR(encode.crdrs1), extendImmCADDI(encode), OP_ADD, false);
         break;
     case 0b001: // C.JAL
         // jal x1, offset[11:1]
@@ -883,7 +883,7 @@ TraceSimDriver::executeQ1(InstrEncode &encode)
         // rd == 2      ~ addi x2, x2, nzimm[9:4]
         // rs != {0, 2} ~ lui rd, nzimm[17:12]
         if (encode.crdrs1 == 2) {
-            EXECUTE_ALU(2, readGPRu(2), extendImmCADDI16SP(encode), OP_ADD, false);
+            EXECUTE_ALU(2, readGPR(2), extendImmCADDI16SP(encode), OP_ADD, false);
         } else {
             EXECUTE_ALU(encode.crdrs1, 0, extendImmCLUI(encode), OP_ADD, false);
         }
@@ -892,33 +892,33 @@ TraceSimDriver::executeQ1(InstrEncode &encode)
         switch (encode.cfunc22) {
         case 0b00:  // C.SRLI
             // srli rd', rd', shamt[5:0]
-            EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), extendImmCSRL(encode), OP_SRL, false);
+            EXECUTE_ALU(encode.crdrs1p + 8, readGPR(encode.crdrs1p + 8), extendImmCSRL(encode), OP_SRL, false);
             break;
         case 0b01:  // C.SRAI
             // srai rd', rd', shamt[5:0]
-            EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), extendImmCSRL(encode), OP_SRA, false);
+            EXECUTE_ALU(encode.crdrs1p + 8, readGPR(encode.crdrs1p + 8), extendImmCSRL(encode), OP_SRA, false);
             break;
         case 0b10:  // C.ANDI
             // andi rd',rd', imm[5:0]
-            EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), extendImmCADDI(encode), OP_AND, false);
+            EXECUTE_ALU(encode.crdrs1p + 8, readGPR(encode.crdrs1p + 8), extendImmCADDI(encode), OP_AND, false);
             break;
         case 0b11:  // ALU
             switch (encode.cfunc21) {
             case 0b00:  // C.SUB
                 // sub rd', rd', rs2'
-                EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), readGPRu(encode.crdrs2p + 8), OP_SUB, false);
+                EXECUTE_ALU(encode.crdrs1p + 8, readGPR(encode.crdrs1p + 8), readGPR(encode.crdrs2p + 8), OP_SUB, false);
                 break;
             case 0b01:  // C.XOR
                 // xor rd', rd', rs2'
-                EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), readGPRu(encode.crdrs2p + 8), OP_XOR, false);
+                EXECUTE_ALU(encode.crdrs1p + 8, readGPR(encode.crdrs1p + 8), readGPR(encode.crdrs2p + 8), OP_XOR, false);
                 break;
             case 0b10:  // C.OR
                 // or rd', rd', rs2'
-                EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), readGPRu(encode.crdrs2p + 8), OP_OR, false);
+                EXECUTE_ALU(encode.crdrs1p + 8, readGPR(encode.crdrs1p + 8), readGPR(encode.crdrs2p + 8), OP_OR, false);
                 break;
             case 0b11:  // C.AND
                 // and rd', rd', rs2'
-                EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), readGPRu(encode.crdrs2p + 8), OP_AND, false);
+                EXECUTE_ALU(encode.crdrs1p + 8, readGPR(encode.crdrs1p + 8), readGPR(encode.crdrs2p + 8), OP_AND, false);
                 break;
             default:
                 EXECUTE_UNKNOWN(encode);
@@ -936,11 +936,11 @@ TraceSimDriver::executeQ1(InstrEncode &encode)
         break;
     case 0b110: // C.BEQZ
         // beq rs1', x0, offset[8:1]
-        EXECUTE_BRANCH(readGPRi(encode.crdrs1p + 8), 0, OP_EQ, extendImmCB(encode));
+        EXECUTE_BRANCH(readGPR(encode.crdrs1p + 8), 0, OP_EQ, extendImmCB(encode));
         break;
     case 0b111: // C.BNEZ
         // bne rs1', x0, offset[8:1]
-        EXECUTE_BRANCH(readGPRi(encode.crdrs1p + 8), 0, OP_NE, extendImmCB(encode));
+        EXECUTE_BRANCH(readGPR(encode.crdrs1p + 8), 0, OP_NE, extendImmCB(encode));
         break;
     default:
         EXECUTE_UNKNOWN(encode);
@@ -956,15 +956,15 @@ TraceSimDriver::executeQ0(InstrEncode &encode)
     switch (encode.cfunc3) {
     case 0b000: // C.ADDI4SPN
         // addi rd', x2, nzuimm[9:2]
-        EXECUTE_ALU(encode.crdrs2p + 8, readGPRu(2), extendImmCADDI4SPN(encode), OP_ADD, false);
+        EXECUTE_ALU(encode.crdrs2p + 8, readGPR(2), extendImmCADDI4SPN(encode), OP_ADD, false);
         break;
     case 0b010: // C.LW
         // lw rd', offset[6:2](rs1')
-        EXECUTE_LD(encode.crdrs2p + 8, readGPRu(encode.crdrs1p + 8), extendImmCLWSW(encode), true, 2);
+        EXECUTE_LD(encode.crdrs2p + 8, readGPR(encode.crdrs1p + 8), extendImmCLWSW(encode), true, 2);
         break;
     case 0b110: // C.SW
         // sw rs2',offset[6:2](rs1')
-        EXECUTE_ST(readGPRu(encode.crdrs2p + 8), readGPRu(encode.crdrs1p + 8), extendImmCLWSW(encode), 2);
+        EXECUTE_ST(readGPR(encode.crdrs2p + 8), readGPR(encode.crdrs1p + 8), extendImmCLWSW(encode), 2);
         break;
     default:
         EXECUTE_UNKNOWN(encode);
