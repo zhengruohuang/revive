@@ -374,6 +374,13 @@ TraceSimDriver::except()
                              (src2) ? (int32_t)(src1) % (int32_t)(src2) : (src1))
 #define OP_REMU(src1, src2) ((src2) ? (uint32_t)(src1) % (uint32_t)(src2) : (src1))
 
+#define OP_EQ(src1, src2)  ((src1) == (src2))
+#define OP_NE(src1, src2)  ((src1) != (src2))
+#define OP_LT(src1, src2)  ((int32_t)(src1) < (int32_t)(src2))
+#define OP_LTU(src1, src2) ((uint32_t)(src1) < (uint32_t)(src2))
+#define OP_GE(src1, src2)  ((int32_t)(src1) >= (int32_t)(src2))
+#define OP_GEU(src1, src2) ((uint32_t)(src1) >= (uint32_t)(src2))
+
 #define OP_AMO_OK(src1, src2)   (0)
 #define OP_AMO_LL(src1, src2)   (src1)
 #define OP_AMO_SWAP(src1, src2) (src2)
@@ -444,10 +451,10 @@ TraceSimDriver::except()
         state.pc = target; \
     } while (0)
 
-#define EXECUTE_BRANCH(src1, src2, offset, taken_cond) do { \
+#define EXECUTE_BRANCH(src1, src2, op, offset) do { \
+        bool taken = op((src1), (src2)); \
         uint32_t taken_pc = state.pc + offset; \
         uint32_t ntaken_pc = state.pc + instr_len; \
-        bool taken = (src1) taken_cond (src2); \
         uint32_t target = taken ? taken_pc : ntaken_pc; \
         trace(state.pc, encode, \
               true, target, \
@@ -455,7 +462,7 @@ TraceSimDriver::except()
         std::cout << "[BRA] taken: " << taken \
             << ", src1: " << std::hex << (src1) << std::dec \
             << ", src2: " << std::hex << (src2) << std::dec \
-            << ", cond: " << #taken_cond \
+            << ", op: " << #op \
             << ", offset: " << std::hex << (offset) << std::dec \
             << ", target: " << std::hex << (target) << std::dec \
             << std::endl; \
@@ -593,22 +600,22 @@ TraceSimDriver::executeG(InstrEncode &encode)
     case 0b1100011: // BEQ/BNE/BLT/BGE/BLTU/BGEU
         switch (encode.func3) {
         case 0b000: // BEQ
-            EXECUTE_BRANCH(readGPRi(encode.rs1), readGPRi(encode.rs2), extendImmTypeB(encode), ==);
+            EXECUTE_BRANCH(readGPRi(encode.rs1), readGPRi(encode.rs2), OP_EQ, extendImmTypeB(encode));
             break;
         case 0b001: // BNE
-            EXECUTE_BRANCH(readGPRi(encode.rs1), readGPRi(encode.rs2), extendImmTypeB(encode), !=);
+            EXECUTE_BRANCH(readGPRi(encode.rs1), readGPRi(encode.rs2), OP_NE, extendImmTypeB(encode));
             break;
         case 0b100: // BLT
-            EXECUTE_BRANCH(readGPRi(encode.rs1), readGPRi(encode.rs2), extendImmTypeB(encode), <);
+            EXECUTE_BRANCH(readGPRi(encode.rs1), readGPRi(encode.rs2), OP_LT, extendImmTypeB(encode));
             break;
         case 0b101: // BGE
-            EXECUTE_BRANCH(readGPRi(encode.rs1), readGPRi(encode.rs2), extendImmTypeB(encode), >=);
+            EXECUTE_BRANCH(readGPRi(encode.rs1), readGPRi(encode.rs2), OP_GE, extendImmTypeB(encode));
             break;
         case 0b110: // BLTU
-            EXECUTE_BRANCH(readGPRu(encode.rs1), readGPRu(encode.rs2), extendImmTypeB(encode), <);
+            EXECUTE_BRANCH(readGPRu(encode.rs1), readGPRu(encode.rs2), OP_LTU, extendImmTypeB(encode));
             break;
         case 0b111: // BGEU
-            EXECUTE_BRANCH(readGPRu(encode.rs1), readGPRu(encode.rs2), extendImmTypeB(encode), >=);
+            EXECUTE_BRANCH(readGPRu(encode.rs1), readGPRu(encode.rs2), OP_GEU, extendImmTypeB(encode));
             break;
         default:
             EXECUTE_UNKNOWN(encode);
@@ -929,11 +936,11 @@ TraceSimDriver::executeQ1(InstrEncode &encode)
         break;
     case 0b110: // C.BEQZ
         // beq rs1', x0, offset[8:1]
-        EXECUTE_BRANCH(readGPRi(encode.crdrs1p + 8), 0, extendImmCB(encode), ==);
+        EXECUTE_BRANCH(readGPRi(encode.crdrs1p + 8), 0, OP_EQ, extendImmCB(encode));
         break;
     case 0b111: // C.BNEZ
         // bne rs1', x0, offset[8:1]
-        EXECUTE_BRANCH(readGPRi(encode.crdrs1p + 8), 0, extendImmCB(encode), !=);
+        EXECUTE_BRANCH(readGPRi(encode.crdrs1p + 8), 0, OP_NE, extendImmCB(encode));
         break;
     default:
         EXECUTE_UNKNOWN(encode);
