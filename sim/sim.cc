@@ -1,91 +1,125 @@
 #include <iostream>
 #include <iomanip>
+#include <cstdlib>
+#include "sim_ctrl.h"
+#include "debug.hh"
 #include "sim.hh"
-#include "mem.hh"
 #include "as.hh"
+#include "mem.hh"
+#include "ctrl.hh"
+
+#include "rtl.hh"
+#include "trace.hh"
 
 
-SimulatedMachine::SimulatedMachine(ArgParser *cmd)
+/*
+ * The simulation
+ */
+SimulatedMachine::SimulatedMachine(const char *name, ArgParser *cmd)
+    : SimObject(name, cmd),
+      entry(0), term(false), termCode(0)
 {
-    Verilated::commandArgs(cmd->argc, cmd->argv);
-    top = new Vrevive;
+    // Parse arguments
+    cmd->addSetTrue("trace", "-T", "--trace");
+    cmd->addString("kernel", "-K", "--kernel", nullptr);
+    cmd->addUInt64("cycles", "-C", "--cycles", 0);
     
-    as = new PhysicalAddressSpace();
-    as->addRange(new MainMemory(0, 0x8000000ull));
+    // Set up physical memory space
+    mainMemory = new MainMemory("main_memory", cmd,
+                                SIM_PHYS_MEM_START, SIM_PHYS_MEM_SIZE);
+    simCtrl = new SimulationControl("sim_ctrl", cmd,
+                                    SIM_CTRL_BASE, SIM_CTRL_SIZE);
     
-    loadElf("/home/ruohuangz/Projects/revive/target/tests/stop");
+    as = new PhysicalAddressSpace("phys_addr_space", cmd);
+    as->addRange(mainMemory);
+    as->addRange(simCtrl);
     
-    num_cycles = 0;
-    max_cycles = 10;
+    // Load kernel
+    bool loaded = loadElf(cmd->get("kernel")->valueString);
+    if (!loaded) {
+        std::cout << "[SIM] Unable to load kernel" << std::endl;
+        exit(-1);
+    }
+    
+    // Set up sim
+    numCycles = 0;
+    maxCycles = cmd->get("cycles")->valueUInt64;
+    
+    // Create driver
+    if (cmd->get("trace")->valueBool) {
+        driver = new TraceSimDriver(name, cmd, this);
+    } else {
+        driver = new RtlSimDriver(name, cmd, this);
+    }
 }
 
 SimulatedMachine::~SimulatedMachine()
 {
-    delete top;
     delete as;
 }
 
-inline void
-SimulatedMachine::advance()
+void
+SimulatedMachine::printConfig()
 {
-    top->i_clk = 0;
-    top->eval();
-    top->i_clk = 1;
-    top->eval();
-    
-    num_cycles++;
+    std::cout << "[SIM] Simulation Configuration" << std::endl
+        << "[SIM]   Max num cycles: " << maxCycles << std::endl
+        << "[SIM]   Entry @ " << std::hex << entry << std::dec << std::endl
+        << std::endl;
 }
 
 void
 SimulatedMachine::run()
 {
+    // Init input
+    simCtrl->setPseudoIn(0, 10);
+    
     // Reset
-    top->i_rst_n = 0;
-    advance();
-    top->i_rst_n = 1;
+    driver->reset(entry);
     
     // Real simulation
-    while (!Verilated::gotFinish()) {
+    int err = 0;
+    while (!err) {
         std::cout
             << "---------------------------------------------------------------"
             << std::endl
-            << "[SIM] Cycle @ " << num_cycles
-            << ", read: " << (int)top->revive->icache->i_read
-            << ", fetch @ " << std::hex << top->revive->icache->i_pc << std::dec
+            << "[SIM] Cycle @ " << numCycles
             << std::endl;
         
-        if (top->revive->icache->i_read) {
-            uint8_t cacheline[32];
-            as->read(top->revive->icache->i_pc, 32, cacheline);
-            memcpy(top->revive->icache->icache_data, cacheline, 32);
-            
-            uint32_t tag = ((top->revive->icache->i_pc >> (5 + 5)) << 1) | 0x1;
-            top->revive->icache->icache_tag[0] = tag;
-            
-            std::cout << "[I$] ";
-            for (int i = 0; i < 32; i++) {
-                std::cout << std::hex << std::setw(2) << (uint32_t)cacheline[i] << std::dec << " ";
-            }
-            std::cout << std::endl;
-        } else {
-            memset(top->revive->icache->icache_data, 0, 8);
-        }
-        
-        advance();
+        err = driver->cycle(numCycles);
+        numCycles++;
         
         std::cout
             << "---------------------------------------------------------------"
             << std::endl << std::endl;
         
-        if (max_cycles && num_cycles >= max_cycles) {
+        if (maxCycles && numCycles >= maxCycles) {
             std::cout
-                << "[SIM] Max cycle reached: " << max_cycles
+                << "[SIM] Max cycle reached: " << maxCycles
+                << std::endl;
+            break;
+        } else if (term) {
+            std::cout
+                << "[SIM] Termination signal received: " << termCode
+                << std::endl;
+            break;
+        } else if (err) {
+            std::cout
+                << "[SIM] Termination error received: " << err
                 << std::endl;
             break;
         }
     }
     
     // Done
-    std::cout << "[SIM] Simulation done, num_cycles: " << num_cycles << std::endl;
+    std::cout
+        << "[SIM] Simulation done, simulated number of cycles: " << numCycles
+        << std::endl;
+}
+
+void
+SimulatedMachine::terminate(int code)
+{
+    term = true;
+    termCode = code;
 }
 

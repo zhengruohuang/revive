@@ -48,9 +48,13 @@ struct Elf32Program {
 } packed4_struct;
 
 
-void
+bool
 SimulatedMachine::loadElf(const char *filename)
 {
+    if (!filename) {
+        return false;
+    }
+    
     // Read entire file
     std::ifstream ifs(filename, std::ios::binary | std::ios::ate);
     
@@ -84,6 +88,10 @@ SimulatedMachine::loadElf(const char *filename)
         }
     }
     
+    // Entry
+    entry = elf->elf_entry;
+    
     delete file_data;
+    return true;
 }
 

@@ -13,7 +13,7 @@ AddressRange::read(uint64_t addr, uint64_t size, void *buf)
 {
     uint8_t *buf8 = (uint8_t *)buf;
     for (uint64_t i = 0; i < size; i++, addr++) {
-        uint64_t data = read(addr, 1);
+        uint64_t data = read_atomic(addr, 1);
         buf8[i] = (uint8_t)(data & 0xffull);
     }
 }
@@ -24,7 +24,7 @@ AddressRange::write(uint64_t addr, uint64_t size, void *buf)
     uint8_t *buf8 = (uint8_t *)buf;
     for (uint64_t i = 0; i < size; i++, addr++) {
         uint64_t data = buf8[i];
-        write(addr, 1, data);
+        write_atomic(addr, 1, data);
     }
 }
 
@@ -33,7 +33,7 @@ AddressRange::memset(uint64_t addr, int c, uint64_t size)
 {
     uint64_t data = (uint64_t)(int64_t)c;
     for (uint64_t i = 0; i < size; i++, addr++) {
-        write(addr, 1, data);
+        write_atomic(addr, 1, data);
     }
 }
 
@@ -41,7 +41,8 @@ AddressRange::memset(uint64_t addr, int c, uint64_t size)
 /*
  * Address Space
  */
-PhysicalAddressSpace::PhysicalAddressSpace()
+PhysicalAddressSpace::PhysicalAddressSpace(const char *name, ArgParser *cmd)
+    : SimObject(name, cmd)
 {
     limit = 0x1ull << 32;
 }
@@ -67,19 +68,19 @@ PhysicalAddressSpace::find(uint64_t addr, int size)
 }
 
 uint64_t
-PhysicalAddressSpace::read(uint64_t addr, int size)
+PhysicalAddressSpace::read_atomic(uint64_t addr, int size)
 {
     AddressRange *r = find(addr, size);
     panic_if(!r, "Unknown read region @ ", addr, ", size: ", size);
-    return r->read(addr, size);
+    return r->read_atomic(addr, size);
 }
 
 void
-PhysicalAddressSpace::write(uint64_t addr, int size, uint64_t data)
+PhysicalAddressSpace::write_atomic(uint64_t addr, int size, uint64_t data)
 {
     AddressRange *r = find(addr, size);
     panic_if(!r, "Unknown write region @ ", addr, ", size: ", size);
-    r->write(addr, size, data);
+    r->write_atomic(addr, size, data);
 }
 
 void
@@ -110,8 +111,8 @@ void
 PhysicalAddressSpace::addRange(AddressRange *r)
 {
     for (auto &pair: ranges) {
-        AddressRange *r = pair.second;
-        panic_if(r->overlapRange(r), "Range overlap!");
+        AddressRange *r0 = pair.second;
+        panic_if(r->overlapRange(r0), "Range overlap!");
     }
     
     ranges[r->getStart()] = r;

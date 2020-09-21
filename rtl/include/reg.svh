@@ -36,6 +36,8 @@ function int_arch_reg_sel_t compose_int_reg_sel;
     end
 endfunction
 
+`define INVALID_REG { 5'b0, 1'b0 }
+
 
 typedef struct packed {
     sys_arch_reg_idx_t  idx;
@@ -55,13 +57,22 @@ typedef struct packed {
     reg_data_t          data;
     int_arch_reg_idx_t  idx;
     logic               valid;
-} int_arch_reg_write_t;
+} int_arch_reg_wb_t;
 
 typedef struct packed {
     reg_data_t          data;
     sys_arch_reg_idx_t  idx;
     logic               valid;
-} sys_arch_reg_write_t;
+} sys_arch_reg_wb_t;
+
+function int_arch_reg_wb_t compose_int_arch_reg_wb;
+    input reg_data_t            data;
+    input int_arch_reg_idx_t    idx;
+    input logic                 valid;
+    begin
+        compose_int_arch_reg_wb = { valid ? data : '0, valid ? idx : '0, valid };
+    end
+endfunction
 
 
 `endif

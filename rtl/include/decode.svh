@@ -12,20 +12,24 @@
  */
 typedef enum logic [2:0] {
     UNIT_ALU,
-    UNIT_BR,
+    UNIT_BRU,
     UNIT_CSR,
     UNIT_MUL,
     UNIT_MEM,
     UNIT_AMO,
-    UNIT_FP
+    UNIT_FPU,
+    UNIT_FMA
 } decode_fu_t;
 
 typedef enum logic [3:0] {
+    OP_ALU_NONE,
+    OP_ALU_LUI,
+    
     OP_ALU_ADD,
     OP_ALU_SUB,
     
-    OP_ALU_MIN,
-    OP_ALU_MAX,
+    //OP_ALU_MIN,
+    //OP_ALU_MAX,
     
     OP_ALU_AND,
     OP_ALU_OR,
@@ -38,16 +42,16 @@ typedef enum logic [3:0] {
     OP_ALU_SLT,     // Set less than
     OP_ALU_SLTU,
     
-    OP_ALU_FLUSH
+    OP_ALU_FENCE
 } decode_alu_op_t;
 
-typedef enum logic [2:0] {
-    OP_BR_BEQ,
-    OP_BR_BNE,
-    OP_BR_BLT,
-    OP_BR_BLTU,
-    OP_BR_JALR
-} decode_br_op_t;
+typedef enum logic [3:0] {
+    OP_BRU_BEQ,
+    OP_BRU_BLT,
+    OP_BRU_BLTU,
+    OP_BRU_JAL,
+    OP_BRU_JALR
+} decode_bru_op_t;
 
 typedef enum logic [3:0] {
     OP_MDU_MUL,
@@ -76,7 +80,7 @@ typedef enum logic [3:0] {
     OP_CSR_FENCE_VMA
 } decode_csr_op_t;
 
-typedef enum logic [1:0] {
+typedef enum logic [3:0] {
     OP_MEM_LD,
     OP_MEM_LDU,
     OP_MEM_ST
@@ -100,6 +104,7 @@ typedef enum logic [3:0] {
 
 typedef union packed {
     decode_alu_op_t alu;
+    decode_bru_op_t bru;
     decode_mul_op_t mul;
     decode_csr_op_t csr;
     decode_mem_op_t mem;
@@ -109,41 +114,59 @@ typedef union packed {
 typedef union packed {
     logic [1:0]     mem_size;
     logic           w32;
+    logic           invert;
 } decode_op_size_t;
 
 typedef struct packed {
+    logic [2:0]     reserved;
     logic [11:0]    idx;
     logic [4:0]     mask;
 } decode_csr_field_t;
 
 typedef union packed {
-`ifdef RV32
-    logic [4:0]         shift;
-`else
-    logic [5:0]         shift;
-`endif
-    logic [4:0]         shift32;
-    logic [19:0]        imm;
+    logic [19:0]        imm20;
     decode_csr_field_t  csr;
-} decode_imm_fields_t;
-
-typedef struct packed {
-    decode_imm_fields_t fields;
-    logic               valid;
 } decode_imm_t;
+
+typedef enum logic [2:0] {
+    RS_NONE,
+    RS_REG,
+    RS_IMM,
+    RS_PC,
+    RS_ZIMM
+} decode_rs_sel_t;
+
+typedef enum logic [2:0] {
+    RD_NONE,
+    RD_REG,
+    RD_PC,
+    RD_REG_AND_PC,
+    RD_FLUSH
+} decode_rd_sel_t;
 
 typedef struct packed {
     decode_fu_t         unit;
     decode_op_t         op;
     decode_op_size_t    op_size;
     int_arch_reg_sel_t  rd;
+    decode_rd_sel_t     rd_sel;
     int_arch_reg_sel_t  rs1;
+    decode_rs_sel_t     rs1_sel;
     int_arch_reg_sel_t  rs2;
+    decode_rs_sel_t     rs2_sel;
     decode_imm_t        imm;
-    except_t            except;
-    logic               serial;     // Stall sched until ROB empty
+    logic               half;
+    logic               serialize;     // Stall sched until ROB empty
 } decode_t;
 
+function reg_data_t extend_imm;
+    input decode_imm_t imm;
+    begin
+        extend_imm = { {12{imm.imm20[19]}}, imm.imm20 };
+    end
+endfunction
+
+`define NOP_DECODE { UNIT_ALU, OP_ALU_NONE, 2'b0, `INVALID_REG, RD_NONE, `INVALID_REG, RS_NONE, `INVALID_REG, RS_NONE, 20'b0, 1'b0, 1'b0 }
 
 `endif
 

@@ -4,16 +4,18 @@
 
 #include <cstdint>
 #include <map>
+#include "base.hh"
 
 
-class AddressRange
+class AddressRange : public SimObject
 {
-private:
+protected:
     uint64_t start;
     uint64_t size;
 
 public:
-    AddressRange() { start = 0; size = 0; }
+    AddressRange(const char *name, ArgParser *cmd)
+        : SimObject(name, cmd) { start = 0; size = 0; }
     virtual ~AddressRange() { }
     
     void setRange(uint64_t start, uint64_t size)
@@ -58,8 +60,8 @@ public:
     }
     
     // uint64_t data are assumed little-endian
-    virtual uint64_t read(uint64_t addr, int size) = 0;
-    virtual void write(uint64_t addr, int size, uint64_t data) = 0;
+    virtual uint64_t read_atomic(uint64_t addr, int size) = 0;
+    virtual void write_atomic(uint64_t addr, int size, uint64_t data) = 0;
     
     virtual void read(uint64_t addr, uint64_t size, void *buf);
     virtual void write(uint64_t addr, uint64_t size, void *buf);
@@ -67,7 +69,7 @@ public:
 };
 
 
-class PhysicalAddressSpace
+class PhysicalAddressSpace : public SimObject
 {
 private:
     uint64_t limit;
@@ -75,12 +77,12 @@ private:
     AddressRange *find(uint64_t addr, int size);
 
 public:
-    PhysicalAddressSpace();
-    ~PhysicalAddressSpace();
+    PhysicalAddressSpace(const char *name, ArgParser *cmd);
+    virtual ~PhysicalAddressSpace();
     
     // uint64_t data are assumed little-endian
-    uint64_t read(uint64_t addr, int size);
-    void write(uint64_t addr, int size, uint64_t data);
+    uint64_t read_atomic(uint64_t addr, int size);
+    void write_atomic(uint64_t addr, int size, uint64_t data);
     
     void read(uint64_t addr, uint64_t size, void *buf);
     void write(uint64_t addr, uint64_t size, void *buf);

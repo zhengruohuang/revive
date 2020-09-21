@@ -1,0 +1,1070 @@
+#include <iostream>
+#include <iomanip>
+#include <cstdint>
+#include "debug.hh"
+#include "sim.hh"
+#include "trace.hh"
+
+
+/*
+ * Decode
+ */
+struct InstrEncode
+{
+    union {
+        uint32_t value;
+        
+        struct {
+            uint32_t opcode : 7;
+            uint32_t rd     : 5;
+            uint32_t func3  : 3;
+            uint32_t rs1    : 5;
+            uint32_t rs2    : 5;
+            uint32_t func7  : 7;
+        };
+        
+        struct {
+            uint32_t quad   : 2;
+            uint32_t crs2   : 5;
+            uint32_t crdrs1 : 5;
+            uint32_t cfunc1 : 1;
+            uint32_t cfunc3 : 3;
+            uint32_t        : 11;
+            uint32_t rs3    : 5;
+        };
+        
+        struct {
+            uint32_t        : 2;
+            uint32_t crdrs2p: 3;
+            uint32_t cfunc21: 2;
+            uint32_t crdrs1p: 3;
+            uint32_t cfunc22: 2;
+            uint32_t        : 4;
+            uint32_t        : 16;
+        };
+        
+        struct {
+            uint32_t opcode : 7;
+            uint32_t rd     : 5;
+            uint32_t func3  : 3;
+            uint32_t rs1    : 5;
+            uint32_t rs2    : 5;
+            uint32_t func7  : 7;
+        } typeR;
+        
+        struct {
+            uint32_t opcode : 7;
+            uint32_t rd     : 5;
+            uint32_t func3  : 3;
+            uint32_t rs1    : 5;
+            uint32_t rs2    : 5;
+            uint32_t func2  : 2;
+            uint32_t rs3    : 5;
+        } typeR4;
+        
+        struct {
+            uint32_t opcode : 7;
+            uint32_t rd     : 5;
+            uint32_t func3  : 3;
+            uint32_t rs1    : 5;
+            uint32_t imm110 : 12;
+        } typeI;
+        
+        struct {
+            uint32_t opcode : 7;
+            uint32_t imm40  : 5;
+            uint32_t func3  : 3;
+            uint32_t rs1    : 5;
+            uint32_t rs2    : 5;
+            uint32_t imm115 : 7;
+        } typeS;
+        
+        struct {
+            uint32_t opcode : 7;
+            uint32_t imm11  : 1;
+            uint32_t imm41  : 4;
+            uint32_t func3  : 3;
+            uint32_t rs1    : 5;
+            uint32_t rs2    : 5;
+            uint32_t imm105 : 6;
+            uint32_t imm12  : 1;
+        } typeB;
+        
+        struct {
+            uint32_t opcode : 7;
+            uint32_t rd     : 5;
+            uint32_t imm3112: 20;
+        } typeU;
+        
+        struct {
+            uint32_t opcode : 7;
+            uint32_t rd     : 5;
+            uint32_t imm1912: 8;
+            uint32_t imm11  : 1;
+            uint32_t imm101 : 10;
+            uint32_t imm20  : 1;
+        } typeJ;
+        
+        struct {
+            uint32_t opcode : 7;
+            uint32_t rd     : 5;
+            uint32_t func3  : 3;
+            uint32_t rs1    : 5;
+            uint32_t rs2    : 5;
+            uint32_t rl     : 1;
+            uint32_t aq     : 1;
+            uint32_t func5  : 5;
+        } typeAMO;
+        
+//        struct {
+//            uint32_t quad   : 2;
+//            uint32_t rs2    : 5;
+//            uint32_t rdrs1  : 5;
+//            uint32_t func1  : 1;
+//            uint32_t func3  : 4;
+//            uint32_t        : 16;
+//        } typeCR;
+//        
+//        struct {
+//            uint32_t quad   : 2;
+//            uint32_t imm1   : 5;
+//            uint32_t rdrs1  : 5;
+//            uint32_t imm2   : 1;
+//            uint32_t func3  : 3;
+//            uint32_t        : 16;
+//        } typeCI;
+//        
+//        struct {
+//            uint32_t quad   : 2;
+//            uint32_t rs2    : 5;
+//            uint32_t imm    : 6;
+//            uint32_t func3  : 3;
+//            uint32_t        : 16;
+//        } typeCSS;
+//        
+//        struct {
+//            uint32_t quad   : 2;
+//            uint32_t rdp    : 3;
+//            uint32_t imm    : 8;
+//            uint32_t func3  : 3;
+//            uint32_t        : 16;
+//        } typeCIW;
+//        
+//        struct {
+//            uint32_t quad   : 2;
+//            uint32_t rdp    : 3;
+//            uint32_t imm1   : 2;
+//            uint32_t rs1p   : 3;
+//            uint32_t imm2   : 3;
+//            uint32_t func3  : 3;
+//            uint32_t        : 16;
+//        } typeCL;
+//        
+//        struct {
+//            uint32_t quad   : 2;
+//            uint32_t rs2p   : 3;
+//            uint32_t imm1   : 2;
+//            uint32_t rs1p   : 3;
+//            uint32_t imm2   : 3;
+//            uint32_t func3  : 3;
+//            uint32_t        : 16;
+//        } typeCS;
+//        
+//        struct {
+//            uint32_t quad   : 2;
+//            uint32_t rs2p   : 3;
+//            uint32_t func2  : 2;
+//            uint32_t rdrs1p : 3;
+//            uint32_t func22 : 2;
+//            uint32_t func1  : 1;
+//            uint32_t func3  : 3;
+//            uint32_t        : 16;
+//        } typeCA;
+//        
+//        struct {
+//            uint32_t quad   : 2;
+//            uint32_t imm1   : 5;
+//            uint32_t rs1p   : 3;
+//            uint32_t imm2   : 3;
+//            uint32_t func3  : 3;
+//            uint32_t        : 16;
+//        } typeCB;
+//        
+//        struct {
+//            uint32_t quad   : 2;
+//            uint32_t imm    : 11;
+//            uint32_t func3  : 3;
+//            uint32_t        : 16;
+//        } typeCJ;
+    };
+};
+
+static inline uint32_t
+extendSignBit(uint32_t value, int sign_bit_idx)
+{
+    uint32_t sign_bit_mask = 0x1 << sign_bit_idx;
+    if (value & sign_bit_mask) {
+        return value | ~(sign_bit_mask - 0x1);
+    } else {
+        return value;
+    }
+}
+
+static inline uint32_t
+extendImmTypeI(InstrEncode &encode)
+{
+    uint32_t value = 0;
+    value = encode.typeI.imm110;
+    value = extendSignBit(value, 11);
+    return value;
+}
+
+static inline uint32_t
+extendImmTypeS(InstrEncode &encode)
+{
+    uint32_t value = 0;
+    value = encode.typeS.imm115;
+    value = (value << 5) | encode.typeS.imm40;
+    value = extendSignBit(value, 11);
+    return value;
+}
+
+static inline uint32_t
+extendImmTypeB(InstrEncode &encode)
+{
+    uint32_t value = 0;
+    value = encode.typeB.imm12;
+    value = (value << 1) | encode.typeB.imm11;
+    value = (value << 6) | encode.typeB.imm105;
+    value = (value << 4) | encode.typeB.imm41;
+    value = (value << 1);
+    value = extendSignBit(value, 12);
+    return value;
+}
+
+static inline uint32_t
+extendImmTypeU(InstrEncode &encode)
+{
+    uint32_t value = 0;
+    value = encode.typeU.imm3112;
+    value = value << 12;
+    return value;
+}
+
+static inline uint32_t
+extendImmTypeJ(InstrEncode &encode)
+{
+    uint32_t value = 0;
+    value = encode.typeJ.imm20;
+    value = (value << 8) | encode.typeJ.imm1912;
+    value = (value << 1) | encode.typeJ.imm11;
+    value = (value << 10) | encode.typeJ.imm101;
+    value = (value << 1);
+    value = extendSignBit(value, 20);
+    return value;
+}
+
+static inline uint32_t
+extractBits(uint32_t value, int hi, int lo)
+{
+    uint32_t mask = (0x1 << (hi - lo + 1)) - 0x1;
+    return (value >> lo) & mask;
+}
+
+#define EXTRACT_BITS(value, range) extractBits(value, 1 ? range, 0 ? range)
+
+static inline uint32_t
+extendImmCSLLI(InstrEncode &encode)
+{
+    uint32_t value;
+    value = EXTRACT_BITS(encode.value, 12:12);
+    value = (value << 5) | EXTRACT_BITS(encode.value, 6:2);
+    return value;
+}
+
+static inline uint32_t
+extendImmCLWSP(InstrEncode &encode)
+{
+    uint32_t value;
+    value = EXTRACT_BITS(encode.value, 3:2);
+    value = (value << 1) | EXTRACT_BITS(encode.value, 12:12);
+    value = (value << 3) | EXTRACT_BITS(encode.value, 6:4);
+    value = (value << 2);
+    return value;
+}
+
+static inline uint32_t
+extendImmCSWSP(InstrEncode &encode)
+{
+    uint32_t value;
+    value = EXTRACT_BITS(encode.value, 8:7);
+    value = (value << 4) | EXTRACT_BITS(encode.value, 12:9);
+    value = (value << 2);
+    return value;
+}
+
+static inline uint32_t
+extendImmCADDI4SPN(InstrEncode &encode)
+{
+    uint32_t value;
+    value = EXTRACT_BITS(encode.value, 10:7);
+    value = (value << 2) | EXTRACT_BITS(encode.value, 12:11);
+    value = (value << 1) | EXTRACT_BITS(encode.value, 5:5);
+    value = (value << 1) | EXTRACT_BITS(encode.value, 6:6);
+    value = (value << 2);
+    return value;
+}
+
+static inline uint32_t
+extendImmCLWSW(InstrEncode &encode)
+{
+    uint32_t value;
+    value = EXTRACT_BITS(encode.value, 5:5);
+    value = (value << 3) | EXTRACT_BITS(encode.value, 12:10);
+    value = (value << 1) | EXTRACT_BITS(encode.value, 6:6);
+    value = (value << 2);
+    return value;
+}
+
+static inline uint32_t
+extendImmCADDI(InstrEncode &encode)
+{
+    uint32_t value;
+    value = EXTRACT_BITS(encode.value, 12:12);
+    value = (value << 5) | EXTRACT_BITS(encode.value, 6:2);
+    value = extendSignBit(value, 5);
+    return value;
+}
+
+static inline uint32_t
+extendImmCJ(InstrEncode &encode)
+{
+    uint32_t value;
+    value = EXTRACT_BITS(encode.value, 12:12);
+    value = (value << 1) | EXTRACT_BITS(encode.value, 8:8);
+    value = (value << 2) | EXTRACT_BITS(encode.value, 10:9);
+    value = (value << 1) | EXTRACT_BITS(encode.value, 6:6);
+    value = (value << 1) | EXTRACT_BITS(encode.value, 7:7);
+    value = (value << 1) | EXTRACT_BITS(encode.value, 2:2);
+    value = (value << 1) | EXTRACT_BITS(encode.value, 11:11);
+    value = (value << 3) | EXTRACT_BITS(encode.value, 5:3);
+    value = (value << 1);
+    value = extendSignBit(value, 11);
+    return value;
+}
+
+static inline uint32_t
+extendImmCADDI16SP(InstrEncode &encode)
+{
+    uint32_t value;
+    value = EXTRACT_BITS(encode.value, 12:12);
+    value = (value << 2) | EXTRACT_BITS(encode.value, 4:3);
+    value = (value << 1) | EXTRACT_BITS(encode.value, 5:5);
+    value = (value << 1) | EXTRACT_BITS(encode.value, 2:2);
+    value = (value << 1) | EXTRACT_BITS(encode.value, 6:6);
+    value = (value << 4);
+    value = extendSignBit(value, 9);
+    return value;
+}
+
+static inline uint32_t
+extendImmCLUI(InstrEncode &encode)
+{
+    uint32_t value;
+    value = EXTRACT_BITS(encode.value, 12:12);
+    value = (value << 5) | EXTRACT_BITS(encode.value, 6:2);
+    value = (value << 12);
+    value = extendSignBit(value, 17);
+    return value;
+}
+
+static inline uint32_t
+extendImmCSRL(InstrEncode &encode)
+{
+    uint32_t value;
+    value = EXTRACT_BITS(encode.value, 12:12);
+    value = (value << 5) | EXTRACT_BITS(encode.value, 6:2);
+    return value;
+}
+
+static inline uint32_t
+extendImmCB(InstrEncode &encode)
+{
+    uint32_t value;
+    value = EXTRACT_BITS(encode.value, 12:12);
+    value = (value << 2) | EXTRACT_BITS(encode.value, 6:5);
+    value = (value << 1) | EXTRACT_BITS(encode.value, 2:2);
+    value = (value << 2) | EXTRACT_BITS(encode.value, 11:10);
+    value = (value << 2) | EXTRACT_BITS(encode.value, 4:3);
+    value = (value << 1);
+    value = extendSignBit(value, 8);
+    return value;
+}
+
+
+/*
+ * Update
+ */
+inline void
+TraceSimDriver::update()
+{
+}
+
+
+/*
+ * Trace
+ */
+inline void
+TraceSimDriver::trace()
+{
+}
+
+
+/*
+ * Except
+ */
+inline void
+TraceSimDriver::except()
+{
+}
+
+
+/*
+ * Execute
+ */
+#define OP_ADD(src1, src2)  ((src1) + (src2))
+#define OP_SUB(src1, src2)  ((src1) - (src2))
+#define OP_AND(src1, src2)  ((src1) & (src2))
+#define OP_OR(src1, src2)   ((src1) | (src2))
+#define OP_XOR(src1, src2)  ((src1) ^ (src2))
+
+#define OP_SLT(src1, src2)  ((int32_t)(src1) < (int32_t)(src2) ? 1 : 0)
+#define OP_SLTU(src1, src2) ((uint32_t)(src1) < (uint32_t)(src2) ? 1 : 0)
+
+#define OP_SLL(src1, src2)  ((uint32_t)(src1) << (src2))
+#define OP_SRL(src1, src2)  ((uint32_t)(src1) >> (src2))
+#define OP_SRA(src1, src2)  ((int32_t)(src1) >> (src2))
+
+#define OP_MUL(src1, src2)  ((uint32_t)(src1) * (uint32_t)(src2))
+#define OP_DIV(src1, src2)  ((uint32_t)(src1) == 0x80000000 && ((uint32_t)(src2) == 0x1 || (int32_t)(src2) == -1) ? 0x80000000 : \
+                             (src2) ? (int32_t)(src1) / (int32_t)(src2) : (-0x1))
+#define OP_DIVU(src1, src2) ((src2) ? (uint32_t)(src1) / (uint32_t)(src2) : (-0x1))
+#define OP_REM(src1, src2)  ((uint32_t)(src1) == 0x80000000 && ((uint32_t)(src2) == 0x1 || (int32_t)(src2) == -1) ? 0 : \
+                             (src2) ? (int32_t)(src1) % (int32_t)(src2) : (src1))
+#define OP_REMU(src1, src2) ((src2) ? (uint32_t)(src1) % (uint32_t)(src2) : (src1))
+
+#define OP_AMO_OK(src1, src2)   (0)
+#define OP_AMO_LL(src1, src2)   (src1)
+#define OP_AMO_SWAP(src1, src2) (src2)
+#define OP_AMO_MIN(src1, src2)  ((int32_t)(src1) < (int32_t)(src2) ? (src1) : (src2))
+#define OP_AMO_MINU(src1, src2)  ((src1) < (src2) ? (src1) : (src2))
+#define OP_AMO_MAX(src1, src2)  ((int32_t)(src1) > (int32_t)(src2) ? (src1) : (src2))
+#define OP_AMO_MAXU(src1, src2)  ((src1) > (src2) ? (src1) : (src2))
+
+#define EXECUTE_UNKNOWN(encode) do { \
+        panic("Unknown instr!\n"); \
+        mach->terminate(-1); \
+    } while (0)
+
+#define EXECUTE_ALU(dst, src1, src2, op, w32) do { \
+        uint32_t value = op((src1), (src2)); \
+        writeGPR(dst, value); \
+        std::cout << "[ALU] dst: " << dst << ", value: " << std::hex << value << std::dec << std::endl; \
+        state.pc += instr_len;  \
+    } while (0)
+
+#define EXECUTE_MUH(dst, src1, sign1, src2, sign2, w32) do { \
+        uint32_t usrc1 = src1; \
+        uint32_t usrc2 = src2; \
+        bool neg1 = sign1 && (src1 & 0x80000000); \
+        bool neg2 = sign2 && (src2 & 0x80000000); \
+        if (neg1) usrc1 = ~usrc1 + 0x1; \
+        if (neg2) usrc2 = ~usrc2 + 0x1; \
+        uint64_t value = (uint64_t)usrc1 * (uint64_t)usrc2; \
+        if (neg1 != neg2) value = ~value + 0x1ull; \
+        uint32_t high = value >> 32; \
+        writeGPR(dst, high); \
+        state.pc += instr_len;  \
+    } while (0)
+
+#define EXECUTE_JAL(dst, base, offset) do { \
+        uint32_t target = base + offset; \
+        uint32_t link = state.pc + instr_len; \
+        writeGPR(dst, link); \
+        state.pc = target; \
+        std::cout << "[JAL] dst: " << (dst) \
+            << ", base: " << std::hex << (base) << std::dec \
+            << ", offset: " << std::hex << (offset) << std::dec \
+            << ", target: " << std::hex << (target) << std::dec \
+            << std::endl; \
+    } while (0)
+
+#define EXECUTE_BRANCH(src1, src2, offset, taken_cond) do { \
+        uint32_t taken_pc = state.pc + offset; \
+        uint32_t ntaken_pc = state.pc + instr_len; \
+        uint32_t target = (src1) taken_cond (src2) ? taken_pc : ntaken_pc; \
+        state.pc = target; \
+    } while (0)
+
+#define EXECUTE_LD(dst, base, offset, sign, size) do { \
+        uint32_t addr = base + offset; \
+        uint32_t value = executeG_LD(addr, sign, size); \
+        writeGPR(dst, value); \
+        state.pc += instr_len;  \
+    } while (0)
+
+#define EXECUTE_ST(value, base, offset, size) do { \
+        uint32_t addr = base + offset; \
+        executeG_ST(addr, size, value); \
+        state.pc += instr_len;  \
+    } while (0)
+
+#define EXECUTE_AMO(dst, addr, rs2, op_ld, op_st, size) do { \
+        uint32_t ldval = executeG_LD(addr, false, size); \
+        ldval = op_ld(ldval, (rs2)); \
+        writeGPR(dst, ldval); \
+        uint32_t stval = op_st(ldval, (rs2)); \
+        executeG_ST(addr, size, stval); \
+        state.pc += instr_len;  \
+    } while (0)
+
+#define EXECUTE_FENCE(flush) do { \
+        state.pc += instr_len;  \
+    } while (0)
+
+inline uint32_t
+TraceSimDriver::executeG_LD(uint32_t addr, bool sign, int size)
+{
+    uint32_t data = 0;
+    if (size == 0) {
+        uint8_t ld8 = (uint8_t)as->read_atomic(addr, 1);
+        data = sign ? (uint32_t)(int32_t)(int8_t)ld8 : ld8;
+    } else if (size == 1) {
+        uint16_t ld16 = (uint16_t)as->read_atomic(addr, 2);
+        data = sign ? (uint32_t)(int32_t)(int16_t)ld16 : ld16;
+    } else if (size == 2) {
+        uint32_t ld32 = (uint32_t)as->read_atomic(addr, 4);
+        data = ld32;
+    }
+    
+    std::cout << "[SIM] "
+        << "Mem LD @ " << std::hex << addr << std::dec
+        << ", Size: " << size
+        << ", Data: " << std::hex << data << std::dec
+        << std::endl;
+    
+    return data;
+}
+
+inline void
+TraceSimDriver::executeG_ST(uint32_t addr, int size, uint32_t value)
+{
+    if (size == 0) {
+        as->write_atomic(addr, 1, (uint8_t)value);
+    } else if (size == 1) {
+        as->write_atomic(addr, 2, (uint16_t)value);
+    } else if (size == 2) {
+        as->write_atomic(addr, 4, (uint32_t)value);
+    }
+    
+    std::cout << "[SIM] "
+        << "Mem ST @ " << std::hex << addr << std::dec
+        << ", Size: " << size
+        << ", Data: " << std::hex << value << std::dec
+        << std::endl;
+}
+
+inline void
+TraceSimDriver::executeG(InstrEncode &encode)
+{
+    const int instr_len = 4;
+    
+    switch (encode.opcode) {
+    case 0b0110111: // LUI
+        EXECUTE_ALU(encode.rd, 0, extendImmTypeU(encode), OP_ADD, false);
+        break;
+    case 0b0010111: // AUIPC
+        EXECUTE_ALU(encode.rd, state.pc, extendImmTypeU(encode), OP_ADD, false);
+        break;
+    case 0b1101111: // JAL
+        EXECUTE_JAL(encode.rd, state.pc, extendImmTypeJ(encode));
+        break;
+    case 0b1100111: // JALR
+        EXECUTE_JAL(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode));
+        break;
+    case 0b1100011: // BEQ/BNE/BLT/BGE/BLTU/BGEU
+        switch (encode.func3) {
+        case 0b000: // BEQ
+            EXECUTE_BRANCH(readGPRi(encode.rs1), readGPRi(encode.rs2), extendImmTypeB(encode), ==);
+            break;
+        case 0b001: // BNE
+            EXECUTE_BRANCH(readGPRi(encode.rs1), readGPRi(encode.rs2), extendImmTypeB(encode), !=);
+            break;
+        case 0b100: // BLT
+            EXECUTE_BRANCH(readGPRi(encode.rs1), readGPRi(encode.rs2), extendImmTypeB(encode), <);
+            break;
+        case 0b101: // BGE
+            EXECUTE_BRANCH(readGPRi(encode.rs1), readGPRi(encode.rs2), extendImmTypeB(encode), >=);
+            break;
+        case 0b110: // BLTU
+            EXECUTE_BRANCH(readGPRu(encode.rs1), readGPRu(encode.rs2), extendImmTypeB(encode), <);
+            break;
+        case 0b111: // BGEU
+            EXECUTE_BRANCH(readGPRu(encode.rs1), readGPRu(encode.rs2), extendImmTypeB(encode), >=);
+            break;
+        default:
+            EXECUTE_UNKNOWN(encode.value);
+            break;
+        }
+        break;
+    case 0b0000011: // LB/LH/LW/LBU/LHU
+        switch (encode.func3) {
+        case 0b000: // LB
+            EXECUTE_LD(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), true, 0);
+            break;
+        case 0b001: // LH
+            EXECUTE_LD(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), true, 1);
+            break;
+        case 0b010: // LW
+            EXECUTE_LD(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), true, 2);
+            break;
+        case 0b100: // LBU
+            EXECUTE_LD(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), false, 0);
+            break;
+        case 0b101: // LHU
+            EXECUTE_LD(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), false, 1);
+            break;
+        default:
+            EXECUTE_UNKNOWN(encode.value);
+            break;
+        }
+        break;
+    case 0b0100011: // SB/SH/SW
+        switch (encode.func3) {
+        case 0b000: // SB
+            EXECUTE_ST(readGPRu(encode.rs2), readGPRu(encode.rs1), extendImmTypeS(encode), 0);
+            break;
+        case 0b001: // SH
+            EXECUTE_ST(readGPRu(encode.rs2), readGPRu(encode.rs1), extendImmTypeS(encode), 1);
+            break;
+        case 0b010: // SW
+            EXECUTE_ST(readGPRu(encode.rs2), readGPRu(encode.rs1), extendImmTypeS(encode), 2);
+            break;
+        default:
+            EXECUTE_UNKNOWN(encode.value);
+            break;
+        }
+        break;
+    case 0b0010011: // ADDI/SLTI/SLTU/XORI/ORI/ANDI/SLLLI/SRLI/SRAI
+        switch (encode.func3) {
+        case 0b000: // ADDI
+            EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), OP_ADD, false);
+            break;
+        case 0b010: // SLTI
+            EXECUTE_ALU(encode.rd, readGPRi(encode.rs1), (int32_t)extendImmTypeI(encode), OP_SLT, false);
+            break;
+        case 0b011: // SLTIU
+            EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), OP_SLTU, false);
+            break;
+        case 0b100: // XORI
+            EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), OP_XOR, false);
+            break;
+        case 0b110: // ORI
+            EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), OP_OR, false);
+            break;
+        case 0b111: // ANDI
+            EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), OP_AND, false);
+            break;
+        case 0b001: // SLLI
+            EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), OP_SLL, false);
+            break;
+        case 0b101: // SRLI/SRAI
+            if (encode.value & 0x40000000) // SRAI
+                EXECUTE_ALU(encode.rd, readGPRi(encode.rs1), (int32_t)extendImmTypeI(encode), OP_SRA, false);
+            else // SRLI
+                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), OP_SRL, false);
+            break;
+        default:
+            EXECUTE_UNKNOWN(encode.value);
+            break;
+        }
+        break;
+    case 0b0110011: // ADD/SUB/SLL/SLT/SLTU/XOR/SRL/SRA/OR/AND/MUL*/DIV*/REM*
+        if (encode.func7 == 0b0000001) { // MUL*/DIV*/REM*
+            switch (encode.func3) {
+            case 0b000: // MUL
+                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_MUL, false);
+                break;
+            case 0b001: // MULH
+                EXECUTE_MUH(encode.rd, readGPRu(encode.rs1), true, readGPRu(encode.rs2), true, false);
+                break;
+            case 0b010: // MULHSU
+                EXECUTE_MUH(encode.rd, readGPRu(encode.rs1), true, readGPRu(encode.rs2), false, false);
+                break;
+            case 0b011: // MULHU
+                EXECUTE_MUH(encode.rd, readGPRu(encode.rs1), false, readGPRu(encode.rs2), false, false);
+                break;
+            case 0b100: // DIV
+                EXECUTE_ALU(encode.rd, readGPRi(encode.rs1), readGPRi(encode.rs2), OP_DIV, false);
+                break;
+            case 0b101: // DIVU
+                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_DIVU, false);
+                break;
+            case 0b110: // REM
+                EXECUTE_ALU(encode.rd, readGPRi(encode.rs1), readGPRi(encode.rs2), OP_REM, false);
+                break;
+            case 0b111: // REMU
+                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_REMU, false);
+                break;
+            default:
+                EXECUTE_UNKNOWN(encode.value);
+                break;
+            }
+        } else { // ADD/SUB/SLL/SLT/SLTU/XOR/SRL/SRA/OR/AND
+            switch (encode.func3) {
+            case 0b000: // ADD/SUB
+                if (encode.value & 0x40000000) // SUB
+                    EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_SUB, false);
+                else // ADD
+                    EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_ADD, false);
+                break;
+            case 0b010: // SLT
+                EXECUTE_ALU(encode.rd, readGPRi(encode.rs1), readGPRi(encode.rs2), OP_SLT, false);
+                break;
+            case 0b011: // SLTU
+                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_SLTU, false);
+                break;
+            case 0b100: // XOR
+                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_XOR, false);
+                break;
+            case 0b110: // OR
+                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_OR, false);
+                break;
+            case 0b111: // AND
+                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AND, false);
+                break;
+            case 0b001: // SLL
+                EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_SLL, false);
+                break;
+            case 0b101: // SRL/SRA
+                if (encode.value & 0x40000000) // SRA
+                    EXECUTE_ALU(encode.rd, readGPRi(encode.rs1), readGPRi(encode.rs2), OP_SRA, false);
+                else // SRL
+                    EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_SRL, false);
+                break;
+            default:
+                EXECUTE_UNKNOWN(encode.value);
+                break;
+            }
+        }
+        break;
+    case 0b0101111: // AMO
+        if (encode.func3 == 0b010) {
+            switch (encode.typeAMO.func5) {
+            case 0b00010: // LR
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_AMO_LL, 2);
+                break;
+            case 0b00011: // SC
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_OK, OP_AMO_SWAP, 2);
+                break;
+            case 0b00001: // AMO.SWAP
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_AMO_SWAP, 2);
+                break;
+            case 0b00000: // AMO.ADD
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_ADD, 2);
+                break;
+            case 0b00100: // AMO.XOR
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_XOR, 2);
+                break;
+            case 0b01100: // AMO.AND
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_AND, 2);
+                break;
+            case 0b01000: // AMO.OR
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_OR, 2);
+                break;
+            case 0b10000: // AMO.MIN
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_AMO_MIN, 2);
+                break;
+            case 0b11000: // AMO.MINU
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_AMO_MINU, 2);
+                break;
+            case 0b10100: // AMO.MAX
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_AMO_MAX, 2);
+                break;
+            case 0b11100: // AMO.MAXU
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_AMO_MAXU, 2);
+                break;
+            default:
+                EXECUTE_UNKNOWN(encode.value);
+                break;
+            }
+        } else {
+            EXECUTE_UNKNOWN(encode.value);
+        }
+    case 0b0001111: // FENCE/FENCE.I
+        switch (encode.func3) {
+        case 0b000: // FENCE
+            EXECUTE_FENCE(false);
+            break;
+        case 0b001: // FENCE.I
+            EXECUTE_FENCE(true);
+            break;
+        default:
+            EXECUTE_UNKNOWN(encode.value);
+            break;
+        }
+        break;
+    case 0b1110011: // ECALL/EBREAK/CSRRW/CSRRS/CSRRC/CSRRWI/CSRRSI/CSRRCI
+        break;
+    }
+}
+
+inline void
+TraceSimDriver::executeQ2(InstrEncode &encode)
+{
+    const int instr_len = 2;
+    
+    switch (encode.cfunc3) {
+    case 0b000: // C.SLLI
+        // slli rd, rd, shamt[5:0]
+        //EXECUTE_ALU(encode.typeCI.rdrs1, readGPRu(encode.typeCI.rdrs1), extendImmCSLLI(encode), OP_SLL, false);
+        EXECUTE_ALU(encode.crdrs1, readGPRu(encode.crdrs1), extendImmCSLLI(encode), OP_SLL, false);
+        break;
+    case 0b010: // C.LWSP
+        // lw rd, offset[7:2](x2)
+        //EXECUTE_LD(encode.typeCI.rdrs1, readGPRu(2), extendImmCLWSP(encode), true, 2);
+        EXECUTE_LD(encode.crdrs1, readGPRu(2), extendImmCLWSP(encode), true, 2);
+        break;
+    case 0b100: // C.JR/C.MV/C.EBREAK/C.JALR/C.ADD
+        if (encode.crdrs1 && encode.crs2) { // func1 ? C.ADD : C.MV
+            // 1 ~ C.ADD -> add rd, rd, rs2
+            // 0 ~ C.MV  -> add rd, x0, rs2
+            //EXECUTE_ALU(encode.typeCR.rdrs1, encode.typeCR.func1 ? readGPRu(encode.typeCR.rdrs1) : 0, readGPRu(encode.typeCR.rs2), OP_ADD, false);
+            EXECUTE_ALU(encode.crdrs1, encode.cfunc1 ? readGPRu(encode.crdrs1) : 0, readGPRu(encode.crs2), OP_ADD, false);
+        } else if (encode.crdrs1) { // func1 ? C.JALR : C.JR
+            // 1 ~ C.JALR -> jalr x1, 0(rs1)
+            // 0 ~ C.JR   -> jalr x0, 0(rs1)
+            //EXECUTE_JAL(encode.typeCR.func1 ? 1 : 0, readGPRu(encode.typeCR.rdrs1), 0);
+            EXECUTE_JAL(encode.cfunc1 ? 1 : 0, readGPRu(encode.crdrs1), 0);
+        } else { // C.EBREAK
+            EXECUTE_UNKNOWN(encode.value);
+        }
+        break;
+    case 0b110: // C.SWSP
+        // sw rs2, offset[7:2](x2)
+        //EXECUTE_ST(readGPRu(encode.typeCSS.rs2), readGPRu(2), extendImmCSWSP(encode), 2);
+        EXECUTE_ST(readGPRu(encode.crs2), readGPRu(2), extendImmCSWSP(encode), 2);
+        break;
+    default:
+        EXECUTE_UNKNOWN(encode.value);
+        break;
+    }
+}
+
+inline void
+TraceSimDriver::executeQ1(InstrEncode &encode)
+{
+    const int instr_len = 2;
+    
+    switch (encode.cfunc3) {
+    case 0b000: // C.NOP/C.ADDI
+        // addi rd, rd, nzimm[5:0]
+        //EXECUTE_ALU(encode.typeCI.rdrs1, readGPRu(encode.typeCI.rdrs1), extendImmCADDI(encode), OP_ADD, false);
+        EXECUTE_ALU(encode.crdrs1, readGPRu(encode.crdrs1), extendImmCADDI(encode), OP_ADD, false);
+        break;
+    case 0b001: // C.JAL
+        // jal x1, offset[11:1]
+        EXECUTE_JAL(1, state.pc, extendImmCJ(encode));
+        break;
+    case 0b010: // C.LI
+        // addi rd, x0, imm[5:0]
+        //EXECUTE_ALU(encode.typeCI.rdrs1, 0, extendImmCADDI(encode), OP_ADD, false);
+        EXECUTE_ALU(encode.crdrs1, 0, extendImmCADDI(encode), OP_ADD, false);
+        break;
+    case 0b011: // C.ADDI16SP/C.LUI
+        // rd == 2      ~ addi x2, x2, nzimm[9:4]
+        // rs != {0, 2} ~ lui rd, nzimm[17:12]
+        if (encode.crdrs1 == 2) {
+            EXECUTE_ALU(2, readGPRu(2), extendImmCADDI16SP(encode), OP_ADD, false);
+        } else {
+            //EXECUTE_ALU(encode.typeCI.rdrs1, 0, extendImmCLUI(encode), OP_ADD, false);
+            EXECUTE_ALU(encode.crdrs1, 0, extendImmCLUI(encode), OP_ADD, false);
+        }
+        break;
+    case 0b100: // ALU
+        switch (encode.cfunc22) {
+        case 0b00:  // C.SRLI
+            // srli rd', rd', shamt[5:0]
+            //EXECUTE_ALU(encode.typeCA.rdrs1p + 8, readGPRu(encode.typeCA.rdrs1p + 8), extendImmCSRL(encode), OP_SRL, false);
+            EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), extendImmCSRL(encode), OP_SRL, false);
+            break;
+        case 0b01:  // C.SRAI
+            // srai rd', rd', shamt[5:0]
+            //EXECUTE_ALU(encode.typeCA.rdrs1p + 8, readGPRu(encode.typeCA.rdrs1p + 8), extendImmCSRL(encode), OP_SRA, false);
+            EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), extendImmCSRL(encode), OP_SRA, false);
+            break;
+        case 0b10:  // C.ANDI
+            // andi rd',rd', imm[5:0]
+            //EXECUTE_ALU(encode.typeCA.rdrs1p + 8, readGPRu(encode.typeCA.rdrs1p + 8), extendImmCADDI(encode), OP_AND, false);
+            EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), extendImmCADDI(encode), OP_AND, false);
+            break;
+        case 0b11:  // ALU
+            switch (encode.cfunc21) {
+            case 0b00:  // C.SUB
+                // sub rd', rd', rs2'
+                //EXECUTE_ALU(encode.typeCA.rdrs1p + 8, readGPRu(encode.typeCA.rdrs1p + 8), readGPRu(encode.typeCA.rs2p + 8), OP_SUB, false);
+                EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), readGPRu(encode.crdrs2p + 8), OP_SUB, false);
+                break;
+            case 0b01:  // C.XOR
+                // xor rd', rd', rs2'
+                //EXECUTE_ALU(encode.typeCA.rdrs1p + 8, readGPRu(encode.typeCA.rdrs1p + 8), readGPRu(encode.typeCA.rs2p + 8), OP_XOR, false);
+                EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), readGPRu(encode.crdrs2p + 8), OP_XOR, false);
+                break;
+            case 0b10:  // C.OR
+                // or rd', rd', rs2'
+                //EXECUTE_ALU(encode.typeCA.rdrs1p + 8, readGPRu(encode.typeCA.rdrs1p + 8), readGPRu(encode.typeCA.rs2p + 8), OP_OR, false);
+                EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), readGPRu(encode.crdrs2p + 8), OP_OR, false);
+                break;
+            case 0b11:  // C.AND
+                // and rd', rd', rs2'
+                //EXECUTE_ALU(encode.typeCA.rdrs1p + 8, readGPRu(encode.typeCA.rdrs1p + 8), readGPRu(encode.typeCA.rs2p + 8), OP_AND, false);
+                EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), readGPRu(encode.crdrs2p + 8), OP_AND, false);
+                break;
+            default:
+                EXECUTE_UNKNOWN(encode.value);
+                break;
+            }
+            break;
+        default:
+            EXECUTE_UNKNOWN(encode.value);
+            break;
+        }
+        break;
+    case 0b101: // C.J
+        // jal x0, offset[11:1]
+        EXECUTE_JAL(0, state.pc, extendImmCJ(encode));
+        break;
+    case 0b110: // C.BEQZ
+        // beq rs1', x0, offset[8:1]
+        //EXECUTE_BRANCH(readGPRi(encode.typeCB.rs1p + 8), 0, extendImmCB(encode), ==);
+        EXECUTE_BRANCH(readGPRi(encode.crdrs1p + 8), 0, extendImmCB(encode), ==);
+        break;
+    case 0b111: // C.BNEZ
+        // bne rs1', x0, offset[8:1]
+        //EXECUTE_BRANCH(readGPRi(encode.typeCB.rs1p + 8), 0, extendImmCB(encode), !=);
+        EXECUTE_BRANCH(readGPRi(encode.crdrs1p + 8), 0, extendImmCB(encode), !=);
+        break;
+    default:
+        EXECUTE_UNKNOWN(encode.value);
+        break;
+    }
+}
+
+inline void
+TraceSimDriver::executeQ0(InstrEncode &encode)
+{
+    const int instr_len = 2;
+    
+    switch (encode.cfunc3) {
+    case 0b000: // C.ADDI4SPN
+        // addi rd', x2, nzuimm[9:2]
+        //EXECUTE_ALU(encode.typeCIW.rdp + 8, readGPRu(2), extendImmCADDI4SPN(encode), OP_ADD, false);
+        EXECUTE_ALU(encode.crdrs2p + 8, readGPRu(2), extendImmCADDI4SPN(encode), OP_ADD, false);
+        break;
+    case 0b010: // C.LW
+        // lw rd', offset[6:2](rs1')
+        //EXECUTE_LD(encode.typeCL.rdp + 8, readGPRu(encode.typeCL.rs1p + 8), extendImmCLWSW(encode), true, 2);
+        EXECUTE_LD(encode.crdrs2p + 8, readGPRu(encode.crdrs1p + 8), extendImmCLWSW(encode), true, 2);
+        break;
+    case 0b110: // C.SW
+        // sw rs2',offset[6:2](rs1')
+        //EXECUTE_ST(readGPRu(encode.typeCS.rs2p + 8), readGPRu(encode.typeCS.rs1p + 8), extendImmCLWSW(encode), 2);
+        EXECUTE_ST(readGPRu(encode.crdrs2p + 8), readGPRu(encode.crdrs1p + 8), extendImmCLWSW(encode), 2);
+        break;
+    default:
+        EXECUTE_UNKNOWN(encode.value);
+        break;
+    }
+}
+
+
+/*
+ * The simulation
+ */
+TraceSimDriver::TraceSimDriver(const char *name, ArgParser *cmd,
+                           SimulatedMachine *mach)
+    : SimDriver(name, cmd),
+      mach(mach), as(mach->getPhysicalAddressSpace()),
+      numInstrs(0)
+{
+}
+
+int
+TraceSimDriver::startup()
+{
+    if (!openOutputFile("target/commit.txt", out)) {
+        return -1;
+    }
+    
+    return 0;
+}
+
+int
+TraceSimDriver::cleanup()
+{
+    out.close();
+    return 0;
+}
+
+int
+TraceSimDriver::reset(uint64_t entry)
+{
+    state.pc = entry;
+    
+    for (int i = 0; i < 32; i++) {
+        state.gpr[i] = 0;
+    }
+    
+    return 0;
+}
+
+int
+TraceSimDriver::cycle(uint64_t num_cycles)
+{
+    // Fetch
+    int instr_len = 2;
+    uint32_t instr = as->read_atomic(state.pc, 2);
+    if ((instr & 0x3) == 0x3) {
+        instr_len += 2;
+        instr |= as->read_atomic(state.pc + 0x2, 2) << 16;
+    }
+    
+    std::cout
+        << "[SIM] Cycle @ " << num_cycles
+        << ", PC: " << std::hex << state.pc << std::dec
+        << ", Instr: " << std::hex << instr << std::dec
+        << ", (" << instr_len << "B)"
+        << std::endl;
+    
+    // Execute
+    InstrEncode encode = { .value = instr };
+    switch (encode.quad) {
+    case 0: // quadrant 0
+        executeQ0(encode);
+        break;
+    case 1: // quadrant 1
+        executeQ1(encode);
+        break;
+    case 2: // quadrant 2
+        executeQ2(encode);
+        break;
+    case 3: // normal
+        executeG(encode);
+        break;
+    }
+    
+    numInstrs++;
+    
+    return 0;
+}
+

@@ -5,7 +5,9 @@
 #include "debug.hh"
 
 
-MainMemory::MainMemory(uint64_t start, uint64_t size)
+MainMemory::MainMemory(const char *name, ArgParser *cmd,
+                       uint64_t start, uint64_t size)
+    : AddressRange(name, cmd)
 {
     setRange(start, size);
     store = mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -17,15 +19,16 @@ MainMemory::~MainMemory()
 }
 
 uint64_t
-MainMemory::read(uint64_t addr, int size)
+MainMemory::read_atomic(uint64_t addr, int size)
 {
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
     #error "Big endian not supported!"
 #endif
     
     uint64_t offset = addr - getStart();
-    void *store_addr = (char *)store + offset;
+    panic_if(offset & (size - 1), "Unaligned atomic read addr @ ", addr);
     
+    void *store_addr = (char *)store + offset;
     switch (size) {
     case 1:
         return *(uint8_t *)store_addr;
@@ -44,15 +47,16 @@ MainMemory::read(uint64_t addr, int size)
 }
 
 void
-MainMemory::write(uint64_t addr, int size, uint64_t data)
+MainMemory::write_atomic(uint64_t addr, int size, uint64_t data)
 {
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
     #error "Big endian not supported!"
 #endif
     
     uint64_t offset = addr - getStart();
-    void *store_addr = (char *)store + offset;
+    panic_if(offset & (size - 1), "Unaligned atomic write addr @ ", addr);
     
+    void *store_addr = (char *)store + offset;
     switch (size) {
     case 1:
         *(uint8_t *)store_addr = (uint8_t)data;
