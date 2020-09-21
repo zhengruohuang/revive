@@ -93,3 +93,35 @@ common - Utilities and headers shared by sim and tests
 11 - (Planned) Branch predictor-directed ICache prefetch
 
 12 - (Planned) DCache prefetch
+
+## Getting Started
+
+To build everything
+```bash
+make build
+```
+
+To run compliance tests with the RTL model
+```bash
+make compliance
+```
+
+To run individual complex test program with the RTL model
+```bash
+RUN=$(NAME) make run_program
+```
+
+To run all complex test programs with the RTL model
+```bash
+make programs
+```
+
+To build and run everything with RTL model
+```bash
+make
+```
+
+To run everything with the C++ functional model
+```bash
+TRACE=1 make
+```
