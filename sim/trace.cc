@@ -403,20 +403,22 @@ extendImmCB(InstrEncode &encode)
 
 
 /*
- * Update
- */
-inline void
-TraceSimDriver::update()
-{
-}
-
-
-/*
  * Trace
  */
 inline void
-TraceSimDriver::trace()
+TraceSimDriver::trace(uint64_t pc, InstrEncode &encode,
+                      bool alter_pc, uint32_t next_pc,
+                      bool wb_valid, int wb_idx, uint32_t wb_data)
 {
+    out << "[Cycle " << std::setw(5) << numInstrs << "] Instr # " << std::setw(5) << numInstrs
+        << " | PC @ " << std::hex << std::setw(8) << std::setfill('0') << pc << std::dec
+        << " | Encode: " << std::hex << std::setw(8) << std::setfill(' ') << encode.value << std::dec
+        << " | PC Alter: " << alter_pc
+            << " @ " << std::hex << std::setw(8) << std::setfill('0') << next_pc << std::dec
+        << " | WB Valid: " << wb_valid
+            << " @ " << std::setw(2) << std::setfill(' ') << wb_idx
+            << " = " << std::hex << std::setw(8) << std::setfill('0') << wb_data << std::dec
+        << std::setw(0) << std::setfill(' ') << std::endl;
 }
 
 
@@ -462,6 +464,7 @@ TraceSimDriver::except()
 #define OP_AMO_MAXU(src1, src2)  ((src1) > (src2) ? (src1) : (src2))
 
 #define EXECUTE_UNKNOWN(encode) do { \
+        trace(state.pc, encode, false, state.pc, false, 0, 0); \
         panic("Unknown instr!\n"); \
         mach->terminate(-1); \
     } while (0)
@@ -469,8 +472,17 @@ TraceSimDriver::except()
 #define EXECUTE_ALU(dst, src1, src2, op, w32) do { \
         uint32_t value = op((src1), (src2)); \
         writeGPR(dst, value); \
-        std::cout << "[ALU] dst: " << dst << ", value: " << std::hex << value << std::dec << std::endl; \
-        state.pc += instr_len;  \
+        uint32_t target = state.pc + instr_len; \
+        trace(state.pc, encode, \
+              false, target, \
+              true, (dst), value); \
+        std::cout << "[ALU] dst: " << (dst) \
+            << ", src1: " << std::hex << (src1) << std::dec \
+            << ", src2: " << std::hex << (src2) << std::dec \
+            << ", op: " << #op << std::dec \
+            << ", val: " << std::hex << value << std::dec \
+            << std::endl; \
+        state.pc = target;  \
     } while (0)
 
 #define EXECUTE_MUH(dst, src1, sign1, src2, sign2, w32) do { \
@@ -484,25 +496,50 @@ TraceSimDriver::except()
         if (neg1 != neg2) value = ~value + 0x1ull; \
         uint32_t high = value >> 32; \
         writeGPR(dst, high); \
-        state.pc += instr_len;  \
+        uint32_t target = state.pc + instr_len; \
+        trace(state.pc, encode, \
+              false, target, \
+              true, (dst), high); \
+        std::cout << "[MUH] dst: " << (dst) \
+            << ", src1: " << (neg1 ? "-" : "+") << std::hex << (src1) << std::dec \
+            << ", src2: " << (neg2 ? "-" : "+") << std::hex << (src2) << std::dec \
+            << ", val: " << std::hex << value << std::dec \
+            << ", hi: " << std::hex << high << std::dec \
+            << std::endl; \
+        state.pc = target;  \
     } while (0)
 
 #define EXECUTE_JAL(dst, base, offset) do { \
         uint32_t target = base + offset; \
         uint32_t link = state.pc + instr_len; \
         writeGPR(dst, link); \
-        state.pc = target; \
+        trace(state.pc, encode, \
+              true, target, \
+              true, (dst), link); \
         std::cout << "[JAL] dst: " << (dst) \
             << ", base: " << std::hex << (base) << std::dec \
             << ", offset: " << std::hex << (offset) << std::dec \
             << ", target: " << std::hex << (target) << std::dec \
+            << ", link: " << std::hex << (link) << std::dec \
             << std::endl; \
+        state.pc = target; \
     } while (0)
 
 #define EXECUTE_BRANCH(src1, src2, offset, taken_cond) do { \
         uint32_t taken_pc = state.pc + offset; \
         uint32_t ntaken_pc = state.pc + instr_len; \
-        uint32_t target = (src1) taken_cond (src2) ? taken_pc : ntaken_pc; \
+        bool taken = (src1) taken_cond (src2); \
+        uint32_t target = taken ? taken_pc : ntaken_pc; \
+        trace(state.pc, encode, \
+              true, target, \
+              false, 0, 0); \
+        std::cout << "[BRA] taken: " << taken \
+            << ", src1: " << std::hex << (src1) << std::dec \
+            << ", src2: " << std::hex << (src2) << std::dec \
+            << ", cond: " << #taken_cond \
+            << ", offset: " << std::hex << (offset) << std::dec \
+            << ", target: " << std::hex << (target) << std::dec \
+            << std::endl; \
         state.pc = target; \
     } while (0)
 
@@ -510,26 +547,68 @@ TraceSimDriver::except()
         uint32_t addr = base + offset; \
         uint32_t value = executeG_LD(addr, sign, size); \
         writeGPR(dst, value); \
-        state.pc += instr_len;  \
+        uint32_t target = state.pc + instr_len; \
+        trace(state.pc, encode, \
+              false, target, \
+              true, (dst), value); \
+        std::cout << "[LD ] dst: " << (dst) \
+            << ", base: " << std::hex << (base) << std::dec \
+            << ", offset: " << std::hex << (offset) << std::dec \
+            << ", addr: " << std::hex << addr << std::dec \
+            << ", sign: " << (sign) \
+            << ", size: " << (size) \
+            << ", value: " << std::hex << value << std::dec \
+            << std::endl; \
+        state.pc = target;  \
     } while (0)
 
 #define EXECUTE_ST(value, base, offset, size) do { \
         uint32_t addr = base + offset; \
         executeG_ST(addr, size, value); \
-        state.pc += instr_len;  \
+        uint32_t target = state.pc + instr_len; \
+        trace(state.pc, encode, \
+              false, target, \
+              false, 0, 0); \
+        std::cout << "[ST ] value: " << std::hex << value << std::dec \
+            << ", base: " << std::hex << (base) << std::dec \
+            << ", offset: " << std::hex << (offset) << std::dec \
+            << ", addr: " << std::hex << addr << std::dec \
+            << ", size: " << (size) \
+            << std::endl; \
+        state.pc = target;  \
     } while (0)
 
-#define EXECUTE_AMO(dst, addr, rs2, op_ld, op_st, size) do { \
+#define EXECUTE_AMO(dst, addr, rs2, op_name, op_ld, op_st, size) do { \
         uint32_t ldval = executeG_LD(addr, false, size); \
         ldval = op_ld(ldval, (rs2)); \
         writeGPR(dst, ldval); \
         uint32_t stval = op_st(ldval, (rs2)); \
         executeG_ST(addr, size, stval); \
-        state.pc += instr_len;  \
+        uint32_t target = state.pc + instr_len; \
+        trace(state.pc, encode, \
+              false, target, \
+              true, (dst), ldval); \
+        std::cout << "[AMO] dst: " << (dst) \
+            << ", addr: " << std::hex << (addr) << std::dec \
+            << ", src: " << std::hex << (rs2) << std::dec \
+            << ", op: " << (op_name) \
+            << ", op_ld: " << #op_ld \
+            << ", op_st: " << #op_st \
+            << ", size: " << (size) \
+            << ", ldval: " << std::hex << ldval << std::dec \
+            << ", stval: " << std::hex << stval << std::dec \
+            << std::endl; \
+        state.pc = target;  \
     } while (0)
 
-#define EXECUTE_FENCE(flush) do { \
-        state.pc += instr_len;  \
+#define EXECUTE_FENCE(flush_icache) do { \
+        uint32_t target = state.pc + instr_len; \
+        trace(state.pc, encode, \
+              false, target, \
+              false, 0, 0); \
+        std::cout << "[FEN] flush i$: " << (flush_icache) \
+            << std::endl; \
+        state.pc = target;  \
     } while (0)
 
 inline uint32_t
@@ -613,7 +692,7 @@ TraceSimDriver::executeG(InstrEncode &encode)
             EXECUTE_BRANCH(readGPRu(encode.rs1), readGPRu(encode.rs2), extendImmTypeB(encode), >=);
             break;
         default:
-            EXECUTE_UNKNOWN(encode.value);
+            EXECUTE_UNKNOWN(encode);
             break;
         }
         break;
@@ -635,7 +714,7 @@ TraceSimDriver::executeG(InstrEncode &encode)
             EXECUTE_LD(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), false, 1);
             break;
         default:
-            EXECUTE_UNKNOWN(encode.value);
+            EXECUTE_UNKNOWN(encode);
             break;
         }
         break;
@@ -651,7 +730,7 @@ TraceSimDriver::executeG(InstrEncode &encode)
             EXECUTE_ST(readGPRu(encode.rs2), readGPRu(encode.rs1), extendImmTypeS(encode), 2);
             break;
         default:
-            EXECUTE_UNKNOWN(encode.value);
+            EXECUTE_UNKNOWN(encode);
             break;
         }
         break;
@@ -685,7 +764,7 @@ TraceSimDriver::executeG(InstrEncode &encode)
                 EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), extendImmTypeI(encode), OP_SRL, false);
             break;
         default:
-            EXECUTE_UNKNOWN(encode.value);
+            EXECUTE_UNKNOWN(encode);
             break;
         }
         break;
@@ -717,7 +796,7 @@ TraceSimDriver::executeG(InstrEncode &encode)
                 EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_REMU, false);
                 break;
             default:
-                EXECUTE_UNKNOWN(encode.value);
+                EXECUTE_UNKNOWN(encode);
                 break;
             }
         } else { // ADD/SUB/SLL/SLT/SLTU/XOR/SRL/SRA/OR/AND
@@ -753,7 +832,7 @@ TraceSimDriver::executeG(InstrEncode &encode)
                     EXECUTE_ALU(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_SRL, false);
                 break;
             default:
-                EXECUTE_UNKNOWN(encode.value);
+                EXECUTE_UNKNOWN(encode);
                 break;
             }
         }
@@ -762,44 +841,44 @@ TraceSimDriver::executeG(InstrEncode &encode)
         if (encode.func3 == 0b010) {
             switch (encode.typeAMO.func5) {
             case 0b00010: // LR
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_AMO_LL, 2);
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "ll", OP_AMO_LL, OP_AMO_LL, 2);
                 break;
             case 0b00011: // SC
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_OK, OP_AMO_SWAP, 2);
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "sc", OP_AMO_OK, OP_AMO_SWAP, 2);
                 break;
             case 0b00001: // AMO.SWAP
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_AMO_SWAP, 2);
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "swap", OP_AMO_LL, OP_AMO_SWAP, 2);
                 break;
             case 0b00000: // AMO.ADD
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_ADD, 2);
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "add", OP_AMO_LL, OP_ADD, 2);
                 break;
             case 0b00100: // AMO.XOR
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_XOR, 2);
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "xor", OP_AMO_LL, OP_XOR, 2);
                 break;
             case 0b01100: // AMO.AND
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_AND, 2);
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "and", OP_AMO_LL, OP_AND, 2);
                 break;
             case 0b01000: // AMO.OR
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_OR, 2);
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "or", OP_AMO_LL, OP_OR, 2);
                 break;
             case 0b10000: // AMO.MIN
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_AMO_MIN, 2);
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "min", OP_AMO_LL, OP_AMO_MIN, 2);
                 break;
             case 0b11000: // AMO.MINU
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_AMO_MINU, 2);
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "minu", OP_AMO_LL, OP_AMO_MINU, 2);
                 break;
             case 0b10100: // AMO.MAX
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_AMO_MAX, 2);
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "max", OP_AMO_LL, OP_AMO_MAX, 2);
                 break;
             case 0b11100: // AMO.MAXU
-                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), OP_AMO_LL, OP_AMO_MAXU, 2);
+                EXECUTE_AMO(encode.rd, readGPRu(encode.rs1), readGPRu(encode.rs2), "maxu", OP_AMO_LL, OP_AMO_MAXU, 2);
                 break;
             default:
-                EXECUTE_UNKNOWN(encode.value);
+                EXECUTE_UNKNOWN(encode);
                 break;
             }
         } else {
-            EXECUTE_UNKNOWN(encode.value);
+            EXECUTE_UNKNOWN(encode);
         }
     case 0b0001111: // FENCE/FENCE.I
         switch (encode.func3) {
@@ -810,7 +889,7 @@ TraceSimDriver::executeG(InstrEncode &encode)
             EXECUTE_FENCE(true);
             break;
         default:
-            EXECUTE_UNKNOWN(encode.value);
+            EXECUTE_UNKNOWN(encode);
             break;
         }
         break;
@@ -847,7 +926,7 @@ TraceSimDriver::executeQ2(InstrEncode &encode)
             //EXECUTE_JAL(encode.typeCR.func1 ? 1 : 0, readGPRu(encode.typeCR.rdrs1), 0);
             EXECUTE_JAL(encode.cfunc1 ? 1 : 0, readGPRu(encode.crdrs1), 0);
         } else { // C.EBREAK
-            EXECUTE_UNKNOWN(encode.value);
+            EXECUTE_UNKNOWN(encode);
         }
         break;
     case 0b110: // C.SWSP
@@ -856,7 +935,7 @@ TraceSimDriver::executeQ2(InstrEncode &encode)
         EXECUTE_ST(readGPRu(encode.crs2), readGPRu(2), extendImmCSWSP(encode), 2);
         break;
     default:
-        EXECUTE_UNKNOWN(encode.value);
+        EXECUTE_UNKNOWN(encode);
         break;
     }
 }
@@ -931,12 +1010,12 @@ TraceSimDriver::executeQ1(InstrEncode &encode)
                 EXECUTE_ALU(encode.crdrs1p + 8, readGPRu(encode.crdrs1p + 8), readGPRu(encode.crdrs2p + 8), OP_AND, false);
                 break;
             default:
-                EXECUTE_UNKNOWN(encode.value);
+                EXECUTE_UNKNOWN(encode);
                 break;
             }
             break;
         default:
-            EXECUTE_UNKNOWN(encode.value);
+            EXECUTE_UNKNOWN(encode);
             break;
         }
         break;
@@ -955,7 +1034,7 @@ TraceSimDriver::executeQ1(InstrEncode &encode)
         EXECUTE_BRANCH(readGPRi(encode.crdrs1p + 8), 0, extendImmCB(encode), !=);
         break;
     default:
-        EXECUTE_UNKNOWN(encode.value);
+        EXECUTE_UNKNOWN(encode);
         break;
     }
 }
@@ -982,7 +1061,7 @@ TraceSimDriver::executeQ0(InstrEncode &encode)
         EXECUTE_ST(readGPRu(encode.crdrs2p + 8), readGPRu(encode.crdrs1p + 8), extendImmCLWSW(encode), 2);
         break;
     default:
-        EXECUTE_UNKNOWN(encode.value);
+        EXECUTE_UNKNOWN(encode);
         break;
     }
 }
@@ -1064,7 +1143,6 @@ TraceSimDriver::cycle(uint64_t num_cycles)
     }
     
     numInstrs++;
-    
     return 0;
 }
 

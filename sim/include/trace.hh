@@ -29,8 +29,9 @@ private:
     int32_t readGPRi(int idx) { return idx ? (int32_t)state.gpr[idx] : 0; }
     void writeGPR(int idx, uint32_t value) { state.gpr[idx] = idx ? value : 0; }
     
-    void update();
-    void trace();
+    void trace(uint64_t pc, InstrEncode &encode,
+               bool alter_pc, uint32_t next_pc,
+               bool wb_valid, int wb_idx, uint32_t wb_data);
     void except();
     
     uint32_t executeG_LD(uint32_t addr, bool sign, int size);
