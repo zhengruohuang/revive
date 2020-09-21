@@ -19,32 +19,32 @@ module sram_1w1r_wf #(
     input   i_clk
 );
 
-// A simple non-confict SRAM
-wire [WIDTH - 1:0] simple_data;
+    // A simple non-confict SRAM
+    wire [WIDTH - 1:0] simple_data;
 
-sram_1w1r #(
-    .WIDTH      (WIDTH),
-    .DEPTH      (DEPTH),
-    .INIT       (INIT)
-) simple_sram (
-    .i_w_e      (i_w_e),
-    .i_w_addr   (i_w_addr),
-    .i_w_data   (i_w_data),
-    .i_r_e      (i_r_e),
-    .i_r_addr   (i_r_addr),
-    .o_r_data   (simple_data),
-    .i_clk      (i_clk)
-);
+    sram_1w1r #(
+        .WIDTH      (WIDTH),
+        .DEPTH      (DEPTH),
+        .INIT       (INIT)
+    ) simple_sram (
+        .i_w_e      (i_w_e),
+        .i_w_addr   (i_w_addr),
+        .i_w_data   (i_w_data),
+        .i_r_e      (i_r_e),
+        .i_r_addr   (i_r_addr),
+        .o_r_data   (simple_data),
+        .i_clk      (i_clk)
+    );
 
-// Handle the confict
-reg [WIDTH - 1:0] saved_data;
-assign o_r_data = { i_w_e, i_w_addr } == { i_r_e, i_r_addr } ? saved_data : simple_data;
+    // Handle the confict
+    reg [WIDTH - 1:0] saved_data;
+    assign o_r_data = { i_w_e, i_w_addr } == { i_r_e, i_r_addr } ? saved_data : simple_data;
 
-always @ (posedge i_clk) begin
-    if (i_w_e) begin
-        saved_data <= i_w_data;
+    always @ (posedge i_clk) begin
+        if (i_w_e) begin
+            saved_data <= i_w_data;
+        end
     end
-end
 
 endmodule
 
