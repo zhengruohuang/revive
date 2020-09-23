@@ -10,6 +10,15 @@ struct TraceMachineState
 {
     uint32_t pc;
     uint32_t gpr[32];
+    
+    int priv;
+    uint32_t isa;
+    uint32_t status;
+    uint32_t int_enabled;
+    uint32_t int_pending;
+    
+    uint64_t perf[32];
+    uint32_t csr[4096];
 };
 
 struct InstrEncode;
@@ -27,6 +36,9 @@ private:
     
     uint32_t readGPR(int idx) { return idx ? state.gpr[idx] : 0; }
     void writeGPR(int idx, uint32_t value) { state.gpr[idx] = idx ? value : 0; }
+    
+    bool readCSR(uint32_t csr, uint32_t &value);
+    bool writeCSR(uint32_t csr, uint32_t value);
     
     void trace(uint64_t pc, InstrEncode &encode,
                bool alter_pc, uint32_t next_pc,

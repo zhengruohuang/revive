@@ -7,6 +7,318 @@
 
 
 /*
+ * Helpers
+ */
+#define EXTRACT_BITS(value, range) extractBits(value, 1 ? range, 0 ? range)
+
+static inline uint32_t
+extractBits(uint32_t value, int hi, int lo)
+{
+    uint32_t mask = (0x1 << (hi - lo + 1)) - 0x1;
+    return (value >> lo) & mask;
+}
+
+
+/*
+ * CSR
+ */
+struct CSR
+{
+    union {
+        uint32_t value;
+        
+        struct {
+            uint32_t a      : 1;    // atomic
+            uint32_t b      : 1;    // bit-manuplication
+            uint32_t c      : 1;    // compressed
+            uint32_t d      : 1;    // double-precision
+            uint32_t e      : 1;    // rv32e
+            uint32_t f      : 1;    // single-precision
+            uint32_t g      : 1;    // additional standard exts
+            uint32_t h      : 1;    // hypervisor
+            uint32_t i      : 1;    // rv32i base
+            uint32_t j      : 1;    // dynamic translated languages
+            uint32_t k      : 1;    // reserved
+            uint32_t l      : 1;    // decimal floating point
+            uint32_t m      : 1;    // integer mul/div
+            uint32_t n      : 1;    // user-level interrupts
+            uint32_t o      : 1;    // reserved
+            uint32_t p      : 1;    // packed SIMD
+            uint32_t q      : 1;    // quad-precision
+            uint32_t r      : 1;    // reserved
+            uint32_t s      : 1;    // supervisor mode
+            uint32_t t      : 1;    // transactional memory
+            uint32_t u      : 1;    // user mode
+            uint32_t v      : 1;    // vector
+            uint32_t w      : 1;    // reserved
+            uint32_t x      : 1;    // non-std ext
+            uint32_t y      : 1;    // reserved
+            uint32_t z      : 1;    // reserved
+            uint32_t        : 4;
+            uint32_t mxl    : 2;    // machine xlen
+        } misa;
+        
+        struct {
+            uint32_t uie    : 1;    // global user interrupt enabled
+            uint32_t sie    : 1;    // supervisor
+            uint32_t        : 1;
+            uint32_t mie    : 1;    // machine
+            uint32_t upie   : 1;    // previous user interrupt enabled
+            uint32_t spie   : 1;    // supervisor
+            uint32_t        : 1;
+            uint32_t mpie   : 1;    // machine
+            uint32_t spp    : 1;    // previous privilege mode
+            uint32_t        : 2;
+            uint32_t mpp    : 2;    // machine
+            uint32_t fs     : 2;    // fp reg state     0=off, 1=init,
+            uint32_t xs     : 2;    // ext reg state    2=clean, 3=dirty
+            uint32_t mprv   : 1;    // modify privilege
+            uint32_t sum    : 1;    // permit supervisor user memory access
+            uint32_t mxr    : 1;    // make executable readable
+            uint32_t tvm    : 1;    // trap virtual memory
+            uint32_t tw     : 1;    // timeout wait
+            uint32_t tsr    : 1;    // trap SRET
+            uint32_t        : 8;
+            uint32_t sd     : 1;    // dirty = fs == 0b11 || xs == 0b11
+        } mstatus;
+        
+        struct {
+            uint32_t us     : 1;    // user software
+            uint32_t ss     : 1;    // supervisor
+            uint32_t        : 1;
+            uint32_t ms     : 1;    // machine
+            uint32_t ut     : 1;    // user timer
+            uint32_t st     : 1;    // supervisor
+            uint32_t        : 1;
+            uint32_t mt     : 1;    // machine
+            uint32_t ue     : 1;    // user external
+            uint32_t se     : 1;    // supervisor
+            uint32_t        : 1;
+            uint32_t me     : 1;    // machine
+            uint32_t        : 20;
+        } interrupt;
+    };
+};
+
+inline bool
+TraceSimDriver::readCSR(uint32_t csr, uint32_t &value)
+{
+    int min_priv = EXTRACT_BITS(csr, 9:8);
+    if (state.priv < min_priv)
+        return false;
+    
+    // Machine ISA
+    if (csr == 0x301) {         // misa
+        value = state.isa;
+        return true;
+    }
+    
+    // Machine status/ie/ip
+    if (csr == 0x300) {  // mstatus
+        value = state.status;
+        return true;
+    } else if (csr == 0x304) {  // mie
+        value = state.int_enabled;
+        return true;
+    } else if (csr == 0x344) {  // mip
+        value = state.int_pending;
+        return true;
+    }
+    
+    // Supervisor status/ie/ip
+    if (csr == 0x100) {  // sstatus
+        value = state.status;
+        return true;
+    } else if (csr == 0x104) {  // sie
+        value = state.int_enabled;
+        return true;
+    } else if (csr == 0x144) {  // sip
+        value = state.int_pending;
+        return true;
+    }
+    
+    // User status/ie/ip
+    if (csr == 0x000) {  // ustatus
+        value = state.status;
+        return true;
+    } else if (csr == 0x004) {  // uie
+        value = state.int_enabled;
+        return true;
+    } else if (csr == 0x044) {  // uip
+        value = state.int_pending;
+        return true;
+    }
+    
+    // Machine CSRs
+    if ((csr >= 0xf11 && csr <= 0xf14) ||   // mvendorid/marchid/mimpid/mhartid
+        (csr == 0x302 && csr == 0x303) ||   // medeleg/mideleg
+        (csr == 0x305 && csr == 0x306) ||   // mtvec/mcounteren
+        (csr >= 0x340 && csr <= 0x343) ||   // mscratch/mepc/mcause/mtval
+        (csr >= 0x3a0 && csr <= 0x3a3) ||   // pmpcfg0..3
+        (csr >= 0x3b0 && csr <= 0x3bf) ||   // pmpaddr0..15
+        (csr == 0x320) ||                   // mcountinhibit
+        (csr >= 0x323 && csr <= 0x33f)      // mhpmevent3..31
+    ) {
+        value = state.csr[csr];
+        return true;
+    }
+    
+    // Supervisor CSRs
+    if ((csr == 0x102 || csr == 0x103) ||   // sedeleg/sideleg/sie
+        (csr == 0x105 || csr == 0x106) ||   // stvec/scounteren
+        (csr >= 0x140 && csr <= 0x143) ||   // sscratch/sepc/scause/stval
+        (csr == 0x180)                      // satp
+    ) {
+        value = state.csr[csr];
+        return true;
+    }
+    
+    // User CSRs
+    if ((csr == 0x005) ||                   // utvec
+        (csr >= 0x040 && csr <= 0x043) ||   // uscratch/uepc/ucause/utval
+        (csr >= 0x001 && csr <= 0x003)      // fflags/frm/fcsr
+    ) {
+        value = state.csr[csr];
+        return true;
+    }
+    
+    // Machine performance counters
+    if ((csr >= 0xb00 && csr <= 0xb1f) ||   // mcycle/minstret/mhpmcounter3..31
+        (csr >= 0xb80 && csr <= 0xb9f)      // mcycleh/minstreth/mhpmcounter3h..31h
+    ) {
+        bool hi = csr & 0x80;
+        uint64_t full = state.perf[csr & 0x1f];
+        value = hi ? (full >> 32) : (full & 0xffffffff);
+        return true;
+    }
+    
+    // Supervisor/User performance counters
+    if ((csr >= 0xc00 && csr <= 0xc1f) ||   // cycle/time/instret/hpmcounter3..31
+        (csr >= 0xc80 && csr <= 0xc9f)      // cycleh/time/instreth/hpmcounter3h..31h
+    ) {
+        uint32_t mask = 0x1 << (csr & 0x1f);
+        bool acc = state.priv == 3 ? true :
+                   state.priv == 1 ? (mask & state.csr[0x306] ? true : false) :
+                   state.priv == 0 ? (mask & state.csr[0x306] & state.csr[0x106] ? true : false) :
+                   false;
+        if (!acc)
+            return false;
+        
+        bool hi = csr & 0x80;
+        uint64_t full = state.perf[csr & 0x1f];
+        value = hi ? (full >> 32) : (full & 0xffffffffull);
+        return true;
+    }
+    
+    return false;
+}
+
+inline bool
+TraceSimDriver::writeCSR(uint32_t csr, uint32_t value)
+{
+    bool ro = EXTRACT_BITS(csr, 11:10) == 0b11;
+    if (ro)
+        return false;
+    
+    int min_priv = EXTRACT_BITS(csr, 9:8);
+    if (state.priv < min_priv)
+        return false;
+    
+    // Machine ISA
+    if (csr == 0x301) {         // misa
+        value = state.isa;
+        return true;
+    }
+    
+    // Machine status/ie/ip
+    if (csr == 0x300) {  // mstatus
+        state.status = value;
+        return true;
+    } else if (csr == 0x304) {  // mie
+        state.int_enabled = value;
+        return true;
+    } else if (csr == 0x344) {  // mip
+        state.int_pending = value;
+        return true;
+    }
+    
+    // Supervisor status/ie/ip
+    if (csr == 0x100) {  // sstatus
+        state.status = value;
+        return true;
+    } else if (csr == 0x104) {  // sie
+        state.int_enabled = value;
+        return true;
+    } else if (csr == 0x144) {  // sip
+        state.int_pending = value;
+        return true;
+    }
+    
+    // User status/ie/ip
+    if (csr == 0x000) {  // ustatus
+        state.status = value;
+        return true;
+    } else if (csr == 0x004) {  // uie
+        state.int_enabled = value;
+        return true;
+    } else if (csr == 0x044) {  // uip
+        state.int_pending = value;
+        return true;
+    }
+    
+    // Machine CSRs
+    if ((csr >= 0xf11 && csr <= 0xf14) ||   // mvendorid/marchid/mimpid/mhartid
+        (csr == 0x302 && csr == 0x303) ||   // medeleg/mideleg
+        (csr == 0x305 && csr == 0x306) ||   // mtvec/mcounteren
+        (csr >= 0x340 && csr <= 0x343) ||   // mscratch/mepc/mcause/mtval
+        (csr >= 0x3a0 && csr <= 0x3a3) ||   // pmpcfg0..3
+        (csr >= 0x3b0 && csr <= 0x3bf) ||   // pmpaddr0..15
+        (csr == 0x320) ||                   // mcountinhibit
+        (csr >= 0x323 && csr <= 0x33f)      // mhpmevent3..31
+    ) {
+        state.csr[csr] = value;
+        return true;
+    }
+    
+    // Supervisor CSRs
+    if ((csr == 0x102 || csr == 0x103) ||   // sedeleg/sideleg/sie
+        (csr == 0x105 || csr == 0x106) ||   // stvec/scounteren
+        (csr >= 0x140 && csr <= 0x143) ||   // sscratch/sepc/scause/stval
+        (csr == 0x180)                      // satp
+    ) {
+        state.csr[csr] = value;
+        return true;
+    }
+    
+    // User CSRs
+    if ((csr == 0x005) ||                   // utvec
+        (csr >= 0x040 && csr <= 0x043) ||   // uscratch/uepc/ucause/utval
+        (csr >= 0x001 && csr <= 0x003)      // fflags/frm/fcsr
+    ) {
+        state.csr[csr] = value;
+        return true;
+    }
+    
+    // Machine performance counters
+    if ((csr >= 0xb00 && csr <= 0xb1f) ||   // mcycle/minstret/mhpmcounter3..31
+        (csr >= 0xb80 && csr <= 0xb9f)      // mcycleh/minstreth/mhpmcounter3h..31h
+    ) {
+        bool hi = csr & 0x80;
+        uint64_t full = state.perf[csr & 0x1f];
+        if (hi) {
+            full = ((uint64_t)value << 32) | (full & 0xffffffffull);
+        } else {
+            full = (full & 0xffffffff00000000ull) | (uint64_t)value;
+        }
+        state.perf[csr & 0x1f] = full;
+        return true;
+    }
+    
+    return false;
+}
+
+
+/*
  * Decode
  */
 struct InstrEncode
@@ -184,13 +496,18 @@ extendImmTypeJ(InstrEncode &encode)
 }
 
 static inline uint32_t
-extractBits(uint32_t value, int hi, int lo)
+extendZimm(InstrEncode &encode)
 {
-    uint32_t mask = (0x1 << (hi - lo + 1)) - 0x1;
-    return (value >> lo) & mask;
+    uint32_t value = encode.typeI.rs1;
+    return value;
 }
 
-#define EXTRACT_BITS(value, range) extractBits(value, 1 ? range, 0 ? range)
+static inline uint32_t
+extendCSR(InstrEncode &encode)
+{
+    uint32_t value = encode.typeI.imm110;
+    return value;
+}
 
 static inline uint32_t
 extendImmCSLLI(InstrEncode &encode)
@@ -389,6 +706,10 @@ TraceSimDriver::except()
 #define OP_AMO_MAX(src1, src2)  ((int32_t)(src1) > (int32_t)(src2) ? (src1) : (src2))
 #define OP_AMO_MAXU(src1, src2)  ((src1) > (src2) ? (src1) : (src2))
 
+#define OP_CSR_SWAP(src1, src2)     (src2)
+#define OP_CSR_SET(src1, src2)      ((src1) | (src2))
+#define OP_CSR_CLEAR(src1, src2)    ((src1) & ~(src2))
+
 #define EXECUTE_UNKNOWN(encode) do { \
         trace(state.pc, encode, false, state.pc, false, 0, 0); \
         panic("Unknown instr!\n"); \
@@ -533,6 +854,34 @@ TraceSimDriver::except()
               false, target, \
               false, 0, 0); \
         std::cout << "[FEN] flush i$: " << (flush_icache) \
+            << std::endl; \
+        state.pc = target;  \
+    } while (0)
+
+#define EXECUTE_CSR(dst, src, csr, rd_csr, wr_csr, op) do { \
+        uint32_t ldval = 0, stval = 0, srcval = (src); \
+        bool rd_ok = true, wr_ok = true; \
+        if (rd_csr) rd_ok = readCSR(csr, ldval); \
+        if (rd_ok) { \
+            writeGPR(dst, ldval); \
+            if (wr_csr) { \
+                stval = op(ldval, srcval); \
+                wr_ok = writeCSR(csr, stval); \
+            } \
+        } \
+        if (!rd_ok || !wr_ok) { \
+            EXECUTE_UNKNOWN(encode); \
+        } \
+        uint32_t target = state.pc + instr_len; \
+        trace(state.pc, encode, \
+              false, target, \
+              true, (dst), ldval); \
+        std::cout << "[CSR] dst: " << (dst) \
+            << ", src: " << std::hex << (srcval) << std::dec \
+            << ", csr: " << std::hex << (csr) << std::dec \
+            << ", op: " << #op \
+            << ", ldval: " << std::hex << ldval << std::dec \
+            << ", stval: " << std::hex << stval << std::dec \
             << std::endl; \
         state.pc = target;  \
     } while (0)
@@ -820,6 +1169,32 @@ TraceSimDriver::executeG(InstrEncode &encode)
         }
         break;
     case 0b1110011: // ECALL/EBREAK/CSRRW/CSRRS/CSRRC/CSRRWI/CSRRSI/CSRRCI
+        switch (encode.func3) {
+        case 0b000: // ECALL/EBREAK
+            EXECUTE_UNKNOWN(encode);
+            break;
+        case 0b001: // CSRRW
+            EXECUTE_CSR(encode.rd, readGPR(encode.rs1), extendCSR(encode), encode.rd, true, OP_CSR_SWAP);
+            break;
+        case 0b010: // CSRRS
+            EXECUTE_CSR(encode.rd, readGPR(encode.rs1), extendCSR(encode), true, encode.rs1, OP_CSR_SET);
+            break;
+        case 0b011: // CSRRC
+            EXECUTE_CSR(encode.rd, readGPR(encode.rs1), extendCSR(encode), true, encode.rs1, OP_CSR_CLEAR);
+            break;
+        case 0b101: // CSRRWI
+            EXECUTE_CSR(encode.rd, extendZimm(encode), extendCSR(encode), encode.rd, true, OP_CSR_SWAP);
+            break;
+        case 0b110: // CSRRSI
+            EXECUTE_CSR(encode.rd, extendZimm(encode), extendCSR(encode), true, encode.rs1, OP_CSR_SET);
+            break;
+        case 0b111: // CSRRCI
+            EXECUTE_CSR(encode.rd, extendZimm(encode), extendCSR(encode), true, encode.rs1, OP_CSR_CLEAR);
+            break;
+        default:
+            EXECUTE_UNKNOWN(encode);
+            break;
+        }
         break;
     }
 }
@@ -1005,6 +1380,7 @@ int
 TraceSimDriver::reset(uint64_t entry)
 {
     state.pc = entry;
+    state.priv = 3;
     
     for (int i = 0; i < 32; i++) {
         state.gpr[i] = 0;

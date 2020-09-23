@@ -216,7 +216,7 @@ define run_compliance_tests
 endef
 
 compliance: build compliance_rv32i compliance_rv32im compliance_rv32imc \
-            compliance_rv32Zifencei
+            compliance_rv32Zifencei compliance_rv32Zicsr
 
 compliance_rv32i:
 	@$(call run_compliance_tests,RV32I,rv32i,$(COMPLIANCE_RV32I))
