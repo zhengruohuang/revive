@@ -40,116 +40,86 @@ extractBits(uint32_t value, int hi, int lo)
 }
 
 inline bool
-TraceSimDriver::checkPaddr(uint64_t paddr, bool read, bool write, bool exec, int &fault, int access_fault)
+TraceSimDriver::checkPaddr(uint64_t paddr, bool read, bool write, bool exec,
+                           int &fault, int access_fault)
 {
     return true;
 }
 
 inline bool
-TraceSimDriver::translateVaddr(uint64_t vaddr, bool read, bool write, bool exec, uint64_t &paddr, int &fault, int page_fault, int access_fault)
+TraceSimDriver::translateVaddr(uint64_t vaddr, bool read, bool write, bool exec,
+                               uint64_t &paddr, int &fault, int page_fault, int access_fault)
 {
-    uint64_t ppn = 0;
-    Rv32PageTableEntry entry = { .value = 0 };
+    bool need_trans = state.trans.mode && 
+        (state.status.mprv ? state.priv : state.status.mpp) != PRIV_MACHINE;
     
-    uint32_t idx1 = (vaddr >> 22) & 0x3ff;
-    uint64_t table1_paddr = (uint64_t)state.trans.ppn << 12;
-    uint64_t entry1_paddr = table1_paddr + idx1 * 4;
-    entry.value = as->read_atomic(entry1_paddr, 4);
-    if (!entry.valid || (!entry.read && entry.write)) { // invalid
-        fault = page_fault;
-        return false;
-    } else if (entry.read || entry.exec) {
-        if (entry.ppn & 0x3ff) { // misaligned superpage
-            fault = page_fault;
-            return false;
-        } else { // superpage
-            ppn = entry.ppn;
-        }
+    if (!need_trans) {
+        paddr = vaddr;
     } else {
-        uint32_t idx2 = (vaddr >> 12) & 0x3ff;
-        uint64_t table2_paddr = (uint64_t)entry.ppn << 12;
-        uint64_t entry2_paddr = table2_paddr + idx2 * 4;
-        entry.value = as->read_atomic(entry2_paddr, 4);
+        uint64_t ppn = 0;
+        Rv32PageTableEntry entry = { .value = 0 };
+        
+        uint32_t idx1 = (vaddr >> 22) & 0x3ff;
+        uint64_t table1_paddr = (uint64_t)state.trans.ppn << 12;
+        uint64_t entry1_paddr = table1_paddr + idx1 * 4;
+        if (!checkPaddr(entry1_paddr, true, false, false, fault, access_fault)) {
+            return false;
+        }
+        
+        entry.value = as->read_atomic(entry1_paddr, 4);
         if (!entry.valid || (!entry.read && entry.write)) { // invalid
             fault = page_fault;
             return false;
-        } else if (!entry.read && !entry.exec) { // invalid
+        } else if (entry.read || entry.exec) {
+            if (entry.ppn & 0x3ff) { // misaligned superpage
+                fault = page_fault;
+                return false;
+            } else { // superpage
+                ppn = entry.ppn;
+            }
+        }
+        
+        // 2-level
+        else {
+            uint32_t idx2 = (vaddr >> 12) & 0x3ff;
+            uint64_t table2_paddr = (uint64_t)entry.ppn << 12;
+            uint64_t entry2_paddr = table2_paddr + idx2 * 4;
+            entry.value = as->read_atomic(entry2_paddr, 4);
+            if (!checkPaddr(entry2_paddr, true, false, false, fault, access_fault)) {
+                return false;
+            }
+            
+            if (!entry.valid || (!entry.read && entry.write) ||
+                (!entry.read && !entry.exec)
+            ) { // invalid
+                fault = page_fault;
+                return false;
+            } else { // normal page
+                ppn = entry.ppn;
+            }
+        }
+        
+        // first access or write
+        if (!entry.access || (!entry.dirty && write)) {
             fault = page_fault;
             return false;
-        } else { // normal page
-            ppn = entry.ppn;
         }
+        
+        // permission violation
+        if ((state.priv == PRIV_USER && !entry.user) ||
+            (state.priv == PRIV_SUPERVISOR && entry.user && !state.status.sum) ||
+            (read && !entry.read && (!state.status.mxr || !entry.exec)) ||
+            (exec && !entry.exec) ||
+            (write && !entry.write)
+        ) {
+            fault = page_fault;
+            return false;
+        }
+        
+        paddr = (ppn << 12) | (vaddr & 0xfffull);
     }
     
-    if ((state.priv == PRIV_USER && !entry.user) ||
-        (state.priv == PRIV_SUPERVISOR && entry.user && !state.status.sum) ||
-        (read && !entry.read && (!state.status.mxr || !entry.exec)) ||
-        (exec && !entry.exec) ||
-        (write && !entry.write)
-    ) { // permission violation
-        fault = page_fault;
-        return false;
-    }
-    
-    paddr = (ppn << 12) | (vaddr & 0xfffull);
-    
-    bool check_ok = checkPaddr(paddr, read, write, exec, fault, access_fault);
-    if (!check_ok) {
-        return false;
-    }
-    
-    return true;
-}
-
-inline bool
-TraceSimDriver::translatedFetchAtomic(uint64_t vaddr, int bytes, uint64_t &value, int &fault)
-{
-    uint64_t paddr = vaddr;
-    
-    bool trans_ok = true;
-    if (state.priv != PRIV_MACHINE && state.trans.mode) {
-        trans_ok = translateVaddr(vaddr, false, false, true, paddr, fault, INSTR_PAGE_FAULT, INSTR_ACCESS_FAULT);
-    }
-    if (!trans_ok) {
-        return false;
-    }
-    
-    value = as->read_atomic(paddr, bytes);
-    return true;
-}
-
-inline bool
-TraceSimDriver::translatedLoadAtomic(uint64_t vaddr, int bytes, uint64_t &value, int &fault)
-{
-    uint64_t paddr = vaddr;
-    
-    bool trans_ok = true;
-    if (state.priv != PRIV_MACHINE && state.trans.mode) {
-        trans_ok = translateVaddr(vaddr, true, false, false, paddr, fault, LOAD_PAGE_FAULT, LOAD_ACCESS_FAULT);
-    }
-    if (!trans_ok) {
-        return false;
-    }
-    
-    value = as->read_atomic(paddr, bytes);
-    return true;
-}
-
-inline bool
-TraceSimDriver::translatedStoreAtomic(uint64_t vaddr, int bytes, uint64_t value, int &fault)
-{
-    uint64_t paddr = vaddr;
-    
-    bool trans_ok = true;
-    if (state.priv != PRIV_MACHINE && state.trans.mode) {
-        trans_ok = translateVaddr(vaddr, false, true, false, paddr, fault, STORE_PAGE_FAULT, STORE_ACCESS_FAULT);
-    }
-    if (!trans_ok) {
-        return false;
-    }
-    
-    as->write_atomic(paddr, bytes, value);
-    return true;
+    return checkPaddr(paddr, read, write, exec, fault, access_fault);
 }
 
 inline bool
@@ -170,10 +140,10 @@ TraceSimDriver::readCSR(uint32_t csr, uint32_t &value)
         value = state.status.value;
         return true;
     } else if (csr == 0x304) {  // mie
-        value = state.int_enabled.value;
+        value = state.inte.value;
         return true;
     } else if (csr == 0x344) {  // mip
-        value = state.int_pending.value;
+        value = state.intp.value;
         return true;
     } else if (csr == 0x341) {  // mepc
         value = state.csr[0x341] & ~(state.isa.c ? 0x1 : 0x3);
@@ -185,10 +155,10 @@ TraceSimDriver::readCSR(uint32_t csr, uint32_t &value)
         value = state.status.value;
         return true;
     } else if (csr == 0x104) {  // sie
-        value = state.int_enabled.value;
+        value = state.inte.value;
         return true;
     } else if (csr == 0x144) {  // sip
-        value = state.int_pending.value;
+        value = state.intp.value;
         return true;
     } else if (csr == 0x141) {  // sepc
         value = state.csr[0x141] & ~(state.isa.c ? 0x1 : 0x3);
@@ -200,10 +170,10 @@ TraceSimDriver::readCSR(uint32_t csr, uint32_t &value)
         value = state.status.value;
         return true;
     } else if (csr == 0x004) {  // uie
-        value = state.int_enabled.value;
+        value = state.inte.value;
         return true;
     } else if (csr == 0x044) {  // uip
-        value = state.int_pending.value;
+        value = state.intp.value;
         return true;
     } else if (csr == 0x041) {  // uepc
         value = state.csr[0x041] & ~(state.isa.c ? 0x1 : 0x3);
@@ -299,10 +269,10 @@ TraceSimDriver::writeCSR(uint32_t csr, uint32_t value)
         state.status.value = value;
         return true;
     } else if (csr == 0x304) {  // mie
-        state.int_enabled.value = value;
+        state.inte.value = value;
         return true;
     } else if (csr == 0x344) {  // mip
-        state.int_pending.value = value;
+        state.intp.value = value;
         return true;
     }
     
@@ -311,10 +281,10 @@ TraceSimDriver::writeCSR(uint32_t csr, uint32_t value)
         state.status.value = value;
         return true;
     } else if (csr == 0x104) {  // sie
-        state.int_enabled.value = value;
+        state.inte.value = value;
         return true;
     } else if (csr == 0x144) {  // sip
-        state.int_pending.value = value;
+        state.intp.value = value;
         return true;
     }
     
@@ -323,10 +293,10 @@ TraceSimDriver::writeCSR(uint32_t csr, uint32_t value)
         state.status.value = value;
         return true;
     } else if (csr == 0x004) {  // uie
-        state.int_enabled.value = value;
+        state.inte.value = value;
         return true;
     } else if (csr == 0x044) {  // uip
-        state.int_pending.value = value;
+        state.intp.value = value;
         return true;
     }
     
@@ -1092,19 +1062,27 @@ TraceSimDriver::executeG_LD(uint32_t addr, bool sign, int size, uint32_t &value,
         return false;
     }
     
+    uint64_t paddr = 0;
+    bool trans_ok = translateVaddr(addr, true, false, false, paddr, fault,
+                                   LOAD_PAGE_FAULT, LOAD_ACCESS_FAULT);
+    if (!trans_ok) {
+        return false;
+    }
+    
     if (size == 0) {
-        uint8_t ld8 = (uint8_t)as->read_atomic(addr, 1);
+        uint8_t ld8 = (uint8_t)as->read_atomic(paddr, 1);
         value = sign ? (uint32_t)(int32_t)(int8_t)ld8 : ld8;
     } else if (size == 1) {
-        uint16_t ld16 = (uint16_t)as->read_atomic(addr, 2);
+        uint16_t ld16 = (uint16_t)as->read_atomic(paddr, 2);
         value = sign ? (uint32_t)(int32_t)(int16_t)ld16 : ld16;
     } else if (size == 2) {
-        uint32_t ld32 = (uint32_t)as->read_atomic(addr, 4);
+        uint32_t ld32 = (uint32_t)as->read_atomic(paddr, 4);
         value = ld32;
     }
     
     std::cout << "[SIM] "
         << "Mem LD @ " << std::hex << addr << std::dec
+        << ", Trans @ " << std::hex << paddr << std::dec
         << ", Size: " << size
         << ", Data: " << std::hex << value << std::dec
         << std::endl;
@@ -1121,16 +1099,24 @@ TraceSimDriver::executeG_ST(uint32_t addr, int size, uint32_t value, int &fault)
         return false;
     }
     
+    uint64_t paddr = 0;
+    bool trans_ok = translateVaddr(addr, false, true, false, paddr, fault,
+                                   STORE_PAGE_FAULT, STORE_ACCESS_FAULT);
+    if (!trans_ok) {
+        return false;
+    }
+    
     if (size == 0) {
-        as->write_atomic(addr, 1, (uint8_t)value);
+        as->write_atomic(paddr, 1, (uint8_t)value);
     } else if (size == 1) {
-        as->write_atomic(addr, 2, (uint16_t)value);
+        as->write_atomic(paddr, 2, (uint16_t)value);
     } else if (size == 2) {
-        as->write_atomic(addr, 4, (uint32_t)value);
+        as->write_atomic(paddr, 4, (uint32_t)value);
     }
     
     std::cout << "[SIM] "
         << "Mem ST @ " << std::hex << addr << std::dec
+        << ", Trans @ " << std::hex << paddr << std::dec
         << ", Size: " << size
         << ", Data: " << std::hex << value << std::dec
         << std::endl;
@@ -1582,6 +1568,47 @@ TraceSimDriver::executeQ0(InstrEncode &encode)
 
 
 /*
+ * Fetch
+ */
+inline void
+TraceSimDriver::fetch(uint32_t &instr, int &size, const bool double_fault)
+{
+    int fault = 0;
+    uint64_t paddr = 0;
+    bool trans_ok = translateVaddr(state.pc, false, false, true, paddr, fault,
+                                   INSTR_PAGE_FAULT, INSTR_ACCESS_FAULT);
+    if (!trans_ok) {
+        panic_if(double_fault, "Double fault!\n");
+        exceptEnter(fault, state.pc);
+        fetch(instr, size, true);
+        return;
+    }
+    
+    int len = 2;
+    uint32_t data = as->read_atomic(paddr, 2);
+    if ((data & 0x3) == 0x3) {
+        uint64_t paddr2 = paddr + 0x2;
+        if ((paddr >> 12) != (paddr2 >> 12)) {
+            bool trans2_ok = translateVaddr(state.pc + 0x2, false, false, true, paddr2, fault,
+                                            INSTR_PAGE_FAULT, INSTR_ACCESS_FAULT);
+            if (!trans2_ok) {
+                panic_if(double_fault, "Double fault!\n");
+                exceptEnter(fault, state.pc);
+                fetch(instr, size, true);
+                return;
+            }
+        }
+        
+        len += 2;
+        data |= as->read_atomic(paddr2, 2) << 16;
+    }
+    
+    instr = data;
+    size = len;
+}
+
+
+/*
  * The simulation
  */
 TraceSimDriver::TraceSimDriver(const char *name, ArgParser *cmd,
@@ -1613,11 +1640,27 @@ int
 TraceSimDriver::reset(uint64_t entry)
 {
     state.pc = entry;
-    state.priv = PRIV_MACHINE;
-    state.isa.c = 1;
-    
     for (int i = 0; i < 32; i++) {
         state.gpr[i] = 0;
+    }
+    
+    state.priv = PRIV_MACHINE;
+    state.isa.value = 0;
+    state.isa.c = 1; // compressed
+    state.isa.e = 1; // embedded
+    state.isa.g = 1; // general
+    state.isa.n = 1; // user-level interrupts
+    state.isa.m = 1; // mul/div
+    state.isa.s = 1; // supervisor
+    state.isa.u = 1; // user
+    state.isa.mxl = 1; // 32-bit
+    state.status.value = 0;
+    state.inte.value = 0;
+    state.intp.value = 0;
+    state.trans.value = 0;
+    
+    for (int i = 0; i < 32; i++) {
+        state.perf[i] = 0;
     }
     
     return 0;
@@ -1627,12 +1670,9 @@ int
 TraceSimDriver::cycle(uint64_t num_cycles)
 {
     // Fetch
-    int instr_len = 2;
-    uint32_t instr = as->read_atomic(state.pc, 2);
-    if ((instr & 0x3) == 0x3) {
-        instr_len += 2;
-        instr |= as->read_atomic(state.pc + 0x2, 2) << 16;
-    }
+    int instr_len = 0;
+    uint32_t instr = 0;
+    fetch(instr, instr_len);
     
     std::cout
         << "[SIM] Cycle @ " << num_cycles

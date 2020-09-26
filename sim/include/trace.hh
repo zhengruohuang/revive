@@ -15,8 +15,8 @@ struct TraceMachineState
     int priv;
     CSRisa isa;
     CSRstatus status;
-    CSRint int_enabled;
-    CSRint int_pending;
+    CSRint inte;
+    CSRint intp;
     CSRatp trans;
     
     uint64_t perf[32];
@@ -79,9 +79,6 @@ private:
     
     bool checkPaddr(uint64_t paddr, bool read, bool write, bool exec, int &fault, int access_fault);
     bool translateVaddr(uint64_t vaddr, bool read, bool write, bool exec, uint64_t &paddr, int &fault, int page_fault, int access_fault);
-    bool translatedFetchAtomic(uint64_t vaddr, int bytes, uint64_t &value, int &fault);
-    bool translatedLoadAtomic(uint64_t vaddr, int bytes, uint64_t &value, int &fault);
-    bool translatedStoreAtomic(uint64_t vaddr, int bytes, uint64_t value, int &fault);
     
     bool readCSR(uint32_t csr, uint32_t &value);
     bool writeCSR(uint32_t csr, uint32_t value);
@@ -103,6 +100,8 @@ private:
     void executeQ2(InstrEncode &encode);
     void executeQ1(InstrEncode &encode);
     void executeQ0(InstrEncode &encode);
+    
+    void fetch(uint32_t &instr, int &size, const bool double_fault = false);
 
 public:
     TraceSimDriver(const char *name, ArgParser *cmd, SimulatedMachine *mach);
