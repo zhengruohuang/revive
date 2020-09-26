@@ -50,6 +50,7 @@ include $(COMPLIANCE_SRC)/rv32imc/Makefile.inc
 include $(COMPLIANCE_SRC)/rv32Zifencei/Makefile.inc
 include $(COMPLIANCE_SRC)/rv32Zicsr/Makefile.inc
 COMPLIANCES = $(addprefix $(TARGET)/compliance/rv32i/, $(COMPLIANCE_RV32I)) \
+              $(addprefix $(TARGET)/compliance/rv32i/, $(COMPLIANCE_RV32I_PRIV)) \
               $(addprefix $(TARGET)/compliance/rv32im/, $(COMPLIANCE_RV32IM)) \
               $(addprefix $(TARGET)/compliance/rv32imc/, $(COMPLIANCE_RV32IMC)) \
               $(addprefix $(TARGET)/compliance/rv32Zifencei/, $(COMPLIANCE_RV32ZIFENCEI)) \
@@ -216,10 +217,15 @@ define run_compliance_tests
 endef
 
 compliance: build compliance_rv32i compliance_rv32im compliance_rv32imc \
-            compliance_rv32Zifencei compliance_rv32Zicsr
+            compliance_rv32Zifencei compliance_rv32Zicsr compliance_rv32i_priv
 
 compliance_rv32i:
 	@$(call run_compliance_tests,RV32I,rv32i,$(COMPLIANCE_RV32I))
+
+compliance_rv32i_priv:
+ifdef TRACE
+	@$(call run_compliance_tests,RV32I_PRIV,rv32i,$(COMPLIANCE_RV32I_PRIV))
+endif
 
 compliance_rv32im:
 	@$(call run_compliance_tests,RV32IM,rv32im,$(COMPLIANCE_RV32IM))
@@ -231,7 +237,9 @@ compliance_rv32Zifencei:
 	@$(call run_compliance_tests,RV32Zifencei,rv32Zifencei,$(COMPLIANCE_RV32ZIFENCEI))
 
 compliance_rv32Zicsr:
+ifdef TRACE
 	@$(call run_compliance_tests,RV32Zicsr,rv32Zicsr,$(COMPLIANCE_RV32ZICSR))
+endif
 
 build_compliance: mkdir_compliance $(COMPLIANCES)
 

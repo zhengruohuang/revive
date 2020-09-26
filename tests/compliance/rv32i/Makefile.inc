@@ -75,8 +75,8 @@ COMPLIANCE_RV32I = \
     I-IO-01
 
 # Trap support required
-#COMPLIANCE_RV32I += \
-#    I-MISALIGN_JMP-01 \
-#    I-MISALIGN_LDST-01 \
-#    I-ECALL-01 \
-#    I-EBREAK-01
+COMPLIANCE_RV32I_PRIV = \
+    I-MISALIGN_JMP-01 \
+    I-MISALIGN_LDST-01 \
+    I-ECALL-01 \
+    I-EBREAK-01

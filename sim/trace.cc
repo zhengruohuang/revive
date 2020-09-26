@@ -6,6 +6,27 @@
 #include "trace.hh"
 
 
+struct Rv32PageTableEntry
+{
+    union {
+        uint32_t value;
+        
+        struct {
+            uint32_t valid  : 1;
+            uint32_t read   : 1;
+            uint32_t write  : 1;
+            uint32_t exec   : 1;
+            uint32_t user   : 1;
+            uint32_t global : 1;
+            uint32_t access : 1;
+            uint32_t dirty  : 1;
+            uint32_t        : 2;
+            uint32_t ppn    : 22;
+        };
+    };
+};
+
+
 /*
  * Helpers
  */
@@ -18,87 +39,118 @@ extractBits(uint32_t value, int hi, int lo)
     return (value >> lo) & mask;
 }
 
-
-/*
- * CSR
- */
-struct CSR
+inline bool
+TraceSimDriver::checkPaddr(uint64_t paddr, bool read, bool write, bool exec, int &fault, int access_fault)
 {
-    union {
-        uint32_t value;
-        
-        struct {
-            uint32_t a      : 1;    // atomic
-            uint32_t b      : 1;    // bit-manuplication
-            uint32_t c      : 1;    // compressed
-            uint32_t d      : 1;    // double-precision
-            uint32_t e      : 1;    // rv32e
-            uint32_t f      : 1;    // single-precision
-            uint32_t g      : 1;    // additional standard exts
-            uint32_t h      : 1;    // hypervisor
-            uint32_t i      : 1;    // rv32i base
-            uint32_t j      : 1;    // dynamic translated languages
-            uint32_t k      : 1;    // reserved
-            uint32_t l      : 1;    // decimal floating point
-            uint32_t m      : 1;    // integer mul/div
-            uint32_t n      : 1;    // user-level interrupts
-            uint32_t o      : 1;    // reserved
-            uint32_t p      : 1;    // packed SIMD
-            uint32_t q      : 1;    // quad-precision
-            uint32_t r      : 1;    // reserved
-            uint32_t s      : 1;    // supervisor mode
-            uint32_t t      : 1;    // transactional memory
-            uint32_t u      : 1;    // user mode
-            uint32_t v      : 1;    // vector
-            uint32_t w      : 1;    // reserved
-            uint32_t x      : 1;    // non-std ext
-            uint32_t y      : 1;    // reserved
-            uint32_t z      : 1;    // reserved
-            uint32_t        : 4;
-            uint32_t mxl    : 2;    // machine xlen
-        } misa;
-        
-        struct {
-            uint32_t uie    : 1;    // global user interrupt enabled
-            uint32_t sie    : 1;    // supervisor
-            uint32_t        : 1;
-            uint32_t mie    : 1;    // machine
-            uint32_t upie   : 1;    // previous user interrupt enabled
-            uint32_t spie   : 1;    // supervisor
-            uint32_t        : 1;
-            uint32_t mpie   : 1;    // machine
-            uint32_t spp    : 1;    // previous privilege mode
-            uint32_t        : 2;
-            uint32_t mpp    : 2;    // machine
-            uint32_t fs     : 2;    // fp reg state     0=off, 1=init,
-            uint32_t xs     : 2;    // ext reg state    2=clean, 3=dirty
-            uint32_t mprv   : 1;    // modify privilege
-            uint32_t sum    : 1;    // permit supervisor user memory access
-            uint32_t mxr    : 1;    // make executable readable
-            uint32_t tvm    : 1;    // trap virtual memory
-            uint32_t tw     : 1;    // timeout wait
-            uint32_t tsr    : 1;    // trap SRET
-            uint32_t        : 8;
-            uint32_t sd     : 1;    // dirty = fs == 0b11 || xs == 0b11
-        } mstatus;
-        
-        struct {
-            uint32_t us     : 1;    // user software
-            uint32_t ss     : 1;    // supervisor
-            uint32_t        : 1;
-            uint32_t ms     : 1;    // machine
-            uint32_t ut     : 1;    // user timer
-            uint32_t st     : 1;    // supervisor
-            uint32_t        : 1;
-            uint32_t mt     : 1;    // machine
-            uint32_t ue     : 1;    // user external
-            uint32_t se     : 1;    // supervisor
-            uint32_t        : 1;
-            uint32_t me     : 1;    // machine
-            uint32_t        : 20;
-        } interrupt;
-    };
-};
+    return true;
+}
+
+inline bool
+TraceSimDriver::translateVaddr(uint64_t vaddr, bool read, bool write, bool exec, uint64_t &paddr, int &fault, int page_fault, int access_fault)
+{
+    uint64_t ppn = 0;
+    Rv32PageTableEntry entry = { .value = 0 };
+    
+    uint32_t idx1 = (vaddr >> 22) & 0x3ff;
+    uint64_t table1_paddr = (uint64_t)state.trans.ppn << 12;
+    uint64_t entry1_paddr = table1_paddr + idx1 * 4;
+    entry.value = as->read_atomic(entry1_paddr, 4);
+    if (!entry.valid || (!entry.read && entry.write)) { // invalid
+        fault = page_fault;
+        return false;
+    } else if (entry.read || entry.exec) {
+        if (entry.ppn & 0x3ff) { // misaligned superpage
+            fault = page_fault;
+            return false;
+        } else { // superpage
+            ppn = entry.ppn;
+        }
+    } else {
+        uint32_t idx2 = (vaddr >> 12) & 0x3ff;
+        uint64_t table2_paddr = (uint64_t)entry.ppn << 12;
+        uint64_t entry2_paddr = table2_paddr + idx2 * 4;
+        entry.value = as->read_atomic(entry2_paddr, 4);
+        if (!entry.valid || (!entry.read && entry.write)) { // invalid
+            fault = page_fault;
+            return false;
+        } else if (!entry.read && !entry.exec) { // invalid
+            fault = page_fault;
+            return false;
+        } else { // normal page
+            ppn = entry.ppn;
+        }
+    }
+    
+    if ((state.priv == PRIV_USER && !entry.user) ||
+        (state.priv == PRIV_SUPERVISOR && entry.user && !state.status.sum) ||
+        (read && !entry.read && (!state.status.mxr || !entry.exec)) ||
+        (exec && !entry.exec) ||
+        (write && !entry.write)
+    ) { // permission violation
+        fault = page_fault;
+        return false;
+    }
+    
+    paddr = (ppn << 12) | (vaddr & 0xfffull);
+    
+    bool check_ok = checkPaddr(paddr, read, write, exec, fault, access_fault);
+    if (!check_ok) {
+        return false;
+    }
+    
+    return true;
+}
+
+inline bool
+TraceSimDriver::translatedFetchAtomic(uint64_t vaddr, int bytes, uint64_t &value, int &fault)
+{
+    uint64_t paddr = vaddr;
+    
+    bool trans_ok = true;
+    if (state.priv != PRIV_MACHINE && state.trans.mode) {
+        trans_ok = translateVaddr(vaddr, false, false, true, paddr, fault, INSTR_PAGE_FAULT, INSTR_ACCESS_FAULT);
+    }
+    if (!trans_ok) {
+        return false;
+    }
+    
+    value = as->read_atomic(paddr, bytes);
+    return true;
+}
+
+inline bool
+TraceSimDriver::translatedLoadAtomic(uint64_t vaddr, int bytes, uint64_t &value, int &fault)
+{
+    uint64_t paddr = vaddr;
+    
+    bool trans_ok = true;
+    if (state.priv != PRIV_MACHINE && state.trans.mode) {
+        trans_ok = translateVaddr(vaddr, true, false, false, paddr, fault, LOAD_PAGE_FAULT, LOAD_ACCESS_FAULT);
+    }
+    if (!trans_ok) {
+        return false;
+    }
+    
+    value = as->read_atomic(paddr, bytes);
+    return true;
+}
+
+inline bool
+TraceSimDriver::translatedStoreAtomic(uint64_t vaddr, int bytes, uint64_t value, int &fault)
+{
+    uint64_t paddr = vaddr;
+    
+    bool trans_ok = true;
+    if (state.priv != PRIV_MACHINE && state.trans.mode) {
+        trans_ok = translateVaddr(vaddr, false, true, false, paddr, fault, STORE_PAGE_FAULT, STORE_ACCESS_FAULT);
+    }
+    if (!trans_ok) {
+        return false;
+    }
+    
+    as->write_atomic(paddr, bytes, value);
+    return true;
+}
 
 inline bool
 TraceSimDriver::readCSR(uint32_t csr, uint32_t &value)
@@ -109,54 +161,64 @@ TraceSimDriver::readCSR(uint32_t csr, uint32_t &value)
     
     // Machine ISA
     if (csr == 0x301) {         // misa
-        value = state.isa;
+        value = state.isa.value;
         return true;
     }
     
     // Machine status/ie/ip
     if (csr == 0x300) {  // mstatus
-        value = state.status;
+        value = state.status.value;
         return true;
     } else if (csr == 0x304) {  // mie
-        value = state.int_enabled;
+        value = state.int_enabled.value;
         return true;
     } else if (csr == 0x344) {  // mip
-        value = state.int_pending;
+        value = state.int_pending.value;
+        return true;
+    } else if (csr == 0x341) {  // mepc
+        value = state.csr[0x341] & ~(state.isa.c ? 0x1 : 0x3);
         return true;
     }
     
     // Supervisor status/ie/ip
     if (csr == 0x100) {  // sstatus
-        value = state.status;
+        value = state.status.value;
         return true;
     } else if (csr == 0x104) {  // sie
-        value = state.int_enabled;
+        value = state.int_enabled.value;
         return true;
     } else if (csr == 0x144) {  // sip
-        value = state.int_pending;
+        value = state.int_pending.value;
+        return true;
+    } else if (csr == 0x141) {  // sepc
+        value = state.csr[0x141] & ~(state.isa.c ? 0x1 : 0x3);
         return true;
     }
     
     // User status/ie/ip
     if (csr == 0x000) {  // ustatus
-        value = state.status;
+        value = state.status.value;
         return true;
     } else if (csr == 0x004) {  // uie
-        value = state.int_enabled;
+        value = state.int_enabled.value;
         return true;
     } else if (csr == 0x044) {  // uip
-        value = state.int_pending;
+        value = state.int_pending.value;
+        return true;
+    } else if (csr == 0x041) {  // uepc
+        value = state.csr[0x041] & ~(state.isa.c ? 0x1 : 0x3);
         return true;
     }
     
     // Machine CSRs
     if ((csr >= 0xf11 && csr <= 0xf14) ||   // mvendorid/marchid/mimpid/mhartid
-        (csr == 0x302 && csr == 0x303) ||   // medeleg/mideleg
-        (csr == 0x305 && csr == 0x306) ||   // mtvec/mcounteren
-        (csr >= 0x340 && csr <= 0x343) ||   // mscratch/mepc/mcause/mtval
+        (csr == 0x302 || csr == 0x303) ||   // medeleg/mideleg
+        (csr == 0x305 || csr == 0x306) ||   // mtvec/mcounteren
+        (csr == 0x340)                 ||   // mscratch
+        (csr == 0x342 || csr == 0x343) ||   // mcause/mtval
         (csr >= 0x3a0 && csr <= 0x3a3) ||   // pmpcfg0..3
         (csr >= 0x3b0 && csr <= 0x3bf) ||   // pmpaddr0..15
-        (csr == 0x320) ||                   // mcountinhibit
+        (csr == 0x320)                 ||   // mcountinhibit
         (csr >= 0x323 && csr <= 0x33f)      // mhpmevent3..31
     ) {
         value = state.csr[csr];
@@ -166,7 +228,8 @@ TraceSimDriver::readCSR(uint32_t csr, uint32_t &value)
     // Supervisor CSRs
     if ((csr == 0x102 || csr == 0x103) ||   // sedeleg/sideleg/sie
         (csr == 0x105 || csr == 0x106) ||   // stvec/scounteren
-        (csr >= 0x140 && csr <= 0x143) ||   // sscratch/sepc/scause/stval
+        (csr == 0x140)                 ||   // sscratch
+        (csr == 0x142 || csr == 0x143) ||   // scause/stval
         (csr == 0x180)                      // satp
     ) {
         value = state.csr[csr];
@@ -174,8 +237,9 @@ TraceSimDriver::readCSR(uint32_t csr, uint32_t &value)
     }
     
     // User CSRs
-    if ((csr == 0x005) ||                   // utvec
-        (csr >= 0x040 && csr <= 0x043) ||   // uscratch/uepc/ucause/utval
+    if ((csr == 0x005)                 ||   // utvec
+        (csr == 0x040)                 ||   // uscratch
+        (csr == 0x042 || csr == 0x043) ||   // ucause/utval
         (csr >= 0x001 && csr <= 0x003)      // fflags/frm/fcsr
     ) {
         value = state.csr[csr];
@@ -226,50 +290,50 @@ TraceSimDriver::writeCSR(uint32_t csr, uint32_t value)
     
     // Machine ISA
     if (csr == 0x301) {         // misa
-        value = state.isa;
+        state.isa.value = value;
         return true;
     }
     
     // Machine status/ie/ip
     if (csr == 0x300) {  // mstatus
-        state.status = value;
+        state.status.value = value;
         return true;
     } else if (csr == 0x304) {  // mie
-        state.int_enabled = value;
+        state.int_enabled.value = value;
         return true;
     } else if (csr == 0x344) {  // mip
-        state.int_pending = value;
+        state.int_pending.value = value;
         return true;
     }
     
     // Supervisor status/ie/ip
     if (csr == 0x100) {  // sstatus
-        state.status = value;
+        state.status.value = value;
         return true;
     } else if (csr == 0x104) {  // sie
-        state.int_enabled = value;
+        state.int_enabled.value = value;
         return true;
     } else if (csr == 0x144) {  // sip
-        state.int_pending = value;
+        state.int_pending.value = value;
         return true;
     }
     
     // User status/ie/ip
     if (csr == 0x000) {  // ustatus
-        state.status = value;
+        state.status.value = value;
         return true;
     } else if (csr == 0x004) {  // uie
-        state.int_enabled = value;
+        state.int_enabled.value = value;
         return true;
     } else if (csr == 0x044) {  // uip
-        state.int_pending = value;
+        state.int_pending.value = value;
         return true;
     }
     
     // Machine CSRs
     if ((csr >= 0xf11 && csr <= 0xf14) ||   // mvendorid/marchid/mimpid/mhartid
-        (csr == 0x302 && csr == 0x303) ||   // medeleg/mideleg
-        (csr == 0x305 && csr == 0x306) ||   // mtvec/mcounteren
+        (csr == 0x302 || csr == 0x303) ||   // medeleg/mideleg
+        (csr == 0x305 || csr == 0x306) ||   // mtvec/mcounteren
         (csr >= 0x340 && csr <= 0x343) ||   // mscratch/mepc/mcause/mtval
         (csr >= 0x3a0 && csr <= 0x3a3) ||   // pmpcfg0..3
         (csr >= 0x3b0 && csr <= 0x3bf) ||   // pmpaddr0..15
@@ -659,11 +723,93 @@ TraceSimDriver::trace(uint64_t pc, InstrEncode &encode,
 
 
 /*
- * Except
+ * Trap
  */
-inline void
-TraceSimDriver::except()
+static inline uint32_t
+calculateTrapHandlerBase(uint32_t tvec, bool is_int, uint32_t cause)
 {
+    int mode = tvec & 0x3;
+    uint32_t base = tvec & ~0x3;
+    if (!mode || !is_int) {
+        return base;
+    } else {
+        return base + cause * 4;
+    }
+}
+
+inline void
+TraceSimDriver::exceptEnter(uint32_t code, uint32_t tval)
+{
+    uint32_t cause = (uint32_t)code;
+    
+    uint32_t delegate_mask = 0x1 << code;
+    uint32_t delegate_m = state.csr[0x302];
+    uint32_t delegate_s = state.csr[0x102];
+    
+    // delegate to U
+    if ((delegate_mask & delegate_m & delegate_s) && state.priv == PRIV_USER) {
+        state.csr[0x041] = state.pc;
+        state.csr[0x042] = cause;
+        state.csr[0x043] = tval;
+        //state.status.upp = state.priv;
+        state.status.upie = state.status.uie;
+        state.status.uie = 0;
+        state.pc = calculateTrapHandlerBase(state.csr[0x005], false, cause);
+        state.priv = PRIV_USER;
+    }
+    
+    // delegate to S
+    else if ((delegate_mask & delegate_m) && state.priv <= PRIV_SUPERVISOR) {
+        state.csr[0x141] = state.pc;
+        state.csr[0x142] = cause;
+        state.csr[0x143] = tval;
+        state.status.spp = state.priv;
+        state.status.spie = state.status.sie;
+        state.status.sie = 0;
+        state.pc = calculateTrapHandlerBase(state.csr[0x105], false, cause);
+        state.priv = PRIV_SUPERVISOR;
+    }
+    
+    // no delegation
+    else {
+        state.csr[0x341] = state.pc;
+        state.csr[0x342] = cause;
+        state.csr[0x343] = tval;
+        state.status.mpp = state.priv;
+        state.status.mpie = state.status.mie;
+        state.status.mie = 0;
+        state.pc = calculateTrapHandlerBase(state.csr[0x305], false, cause);
+        state.priv = PRIV_MACHINE;
+    }
+}
+
+inline void
+TraceSimDriver::trapReturn(int from_priv)
+{
+    // return to U
+    if (from_priv == PRIV_USER) {
+        state.status.uie = state.status.upie;
+        state.pc = state.csr[0x041];
+        state.priv = PRIV_USER; // state.status.upp;
+    }
+    
+    // delegate to S
+    else if (from_priv == PRIV_SUPERVISOR) {
+        state.status.sie = state.status.spie;
+        state.pc = state.csr[0x141];
+        state.priv = state.status.spp;
+    }
+    
+    // return to M
+    else {
+        state.status.mie = state.status.mpie;
+        state.pc = state.csr[0x341];
+        state.priv = state.status.mpp;
+    }
+    
+    state.pc &= ~(state.isa.c ? 0x1 : 0x3);
+    
+    std::cout << "[RET] PC @ " << std::hex << state.pc << std::dec << std::endl;
 }
 
 
@@ -757,19 +903,23 @@ TraceSimDriver::except()
     } while (0)
 
 #define EXECUTE_JAL(dst, base, offset) do { \
-        uint32_t target = base + offset; \
+        uint32_t target = ((base) + (offset)) & ~0x1; \
         uint32_t link = state.pc + instr_len; \
-        writeGPR(dst, link); \
-        trace(state.pc, encode, \
-              true, target, \
-              true, (dst), link); \
         std::cout << "[JAL] dst: " << (dst) \
             << ", base: " << std::hex << (base) << std::dec \
             << ", offset: " << std::hex << (offset) << std::dec \
             << ", target: " << std::hex << (target) << std::dec \
             << ", link: " << std::hex << (link) << std::dec \
             << std::endl; \
-        state.pc = target; \
+        if (!state.isa.c && target & 0x3) { \
+            exceptEnter(INSTR_ADDR_MISALIGN, target); \
+        } else { \
+            trace(state.pc, encode, \
+                  true, target, \
+                  true, (dst), link); \
+            writeGPR(dst, link); \
+            state.pc = target; \
+        } \
     } while (0)
 
 #define EXECUTE_BRANCH(src1, src2, op, offset) do { \
@@ -777,9 +927,6 @@ TraceSimDriver::except()
         uint32_t taken_pc = state.pc + offset; \
         uint32_t ntaken_pc = state.pc + instr_len; \
         uint32_t target = taken ? taken_pc : ntaken_pc; \
-        trace(state.pc, encode, \
-              true, target, \
-              false, 0, 0); \
         std::cout << "[BRA] taken: " << taken \
             << ", src1: " << std::hex << (src1) << std::dec \
             << ", src2: " << std::hex << (src2) << std::dec \
@@ -787,17 +934,21 @@ TraceSimDriver::except()
             << ", offset: " << std::hex << (offset) << std::dec \
             << ", target: " << std::hex << (target) << std::dec \
             << std::endl; \
-        state.pc = target; \
+        if (!state.isa.c && target & 0x3) { \
+            exceptEnter(INSTR_ADDR_MISALIGN, target); \
+        } else { \
+            trace(state.pc, encode, \
+                  true, target, \
+                  false, 0, 0); \
+            state.pc = target; \
+        } \
     } while (0)
 
 #define EXECUTE_LD(dst, base, offset, sign, size) do { \
         uint32_t addr = base + offset; \
-        uint32_t value = executeG_LD(addr, sign, size); \
-        writeGPR(dst, value); \
-        uint32_t target = state.pc + instr_len; \
-        trace(state.pc, encode, \
-              false, target, \
-              true, (dst), value); \
+        uint32_t value = 0; \
+        int fault = 0; \
+        bool ok = executeG_LD(addr, sign, size, value, fault); \
         std::cout << "[LD ] dst: " << (dst) \
             << ", base: " << std::hex << (base) << std::dec \
             << ", offset: " << std::hex << (offset) << std::dec \
@@ -806,31 +957,47 @@ TraceSimDriver::except()
             << ", size: " << (size) \
             << ", value: " << std::hex << value << std::dec \
             << std::endl; \
-        state.pc = target;  \
+        if (!ok) { \
+            exceptEnter(fault, addr); \
+        } else { \
+            uint32_t target = state.pc + instr_len; \
+            trace(state.pc, encode, \
+                  false, target, \
+                  true, (dst), value); \
+            writeGPR(dst, value); \
+            state.pc = target;  \
+        } \
     } while (0)
 
 #define EXECUTE_ST(value, base, offset, size) do { \
         uint32_t addr = base + offset; \
-        executeG_ST(addr, size, value); \
-        uint32_t target = state.pc + instr_len; \
-        trace(state.pc, encode, \
-              false, target, \
-              false, 0, 0); \
+        int fault = 0; \
+        bool ok = executeG_ST(addr, size, value, fault); \
         std::cout << "[ST ] value: " << std::hex << value << std::dec \
             << ", base: " << std::hex << (base) << std::dec \
             << ", offset: " << std::hex << (offset) << std::dec \
             << ", addr: " << std::hex << addr << std::dec \
             << ", size: " << (size) \
             << std::endl; \
-        state.pc = target;  \
+        if (!ok) { \
+            exceptEnter(fault, addr); \
+        } else { \
+            uint32_t target = state.pc + instr_len; \
+            trace(state.pc, encode, \
+                  false, target, \
+                  false, 0, 0); \
+            state.pc = target;  \
+        } \
     } while (0)
 
 #define EXECUTE_AMO(dst, addr, rs2, op_name, op_ld, op_st, size) do { \
-        uint32_t ldval = executeG_LD(addr, false, size); \
+        uint32_t ldval = 0; \
+        int fault = 0; \
+        executeG_LD(addr, false, size, ldval, fault); \
         ldval = op_ld(ldval, (rs2)); \
         writeGPR(dst, ldval); \
         uint32_t stval = op_st(ldval, (rs2)); \
-        executeG_ST(addr, size, stval); \
+        executeG_ST(addr, size, stval, fault); \
         uint32_t target = state.pc + instr_len; \
         trace(state.pc, encode, \
               false, target, \
@@ -869,6 +1036,7 @@ TraceSimDriver::except()
                 wr_ok = writeCSR(csr, stval); \
             } \
         } \
+        std::cout << "rd_ok: " << rd_ok << ", wr_ok: " << wr_ok << ", csr: " << std::hex << csr << std::dec << std::endl; \
         if (!rd_ok || !wr_ok) { \
             EXECUTE_UNKNOWN(encode); \
         } \
@@ -886,33 +1054,73 @@ TraceSimDriver::except()
         state.pc = target;  \
     } while (0)
 
-inline uint32_t
-TraceSimDriver::executeG_LD(uint32_t addr, bool sign, int size)
+#define EXECUTE_ECALL() do { \
+        int code = ECALL_FROM_U; \
+        code += state.priv; \
+        std::cout << "[ECL] code: " << code \
+            << std::endl; \
+        exceptEnter(code, 0); \
+    } while (0)
+
+#define EXECUTE_EBREAK() do { \
+        int code = BREAKPOINT; \
+        std::cout << "[EBK] code: " << code \
+            << std::endl; \
+        exceptEnter(code, state.pc); \
+    } while (0)
+
+#define EXECUTE_RET(from) do { \
+        if ((from) > state.priv) { \
+            EXECUTE_UNKNOWN(encode); \
+        } else { \
+            if ((from) == PRIV_SUPERVISOR && state.status.tsr) { \
+                EXECUTE_UNKNOWN(encode); \
+            } else { \
+                std::cout << "[RET] priv: " << (from) \
+                    << std::endl; \
+                trapReturn(from); \
+            } \
+        } \
+    } while (0)
+
+inline bool
+TraceSimDriver::executeG_LD(uint32_t addr, bool sign, int size, uint32_t &value, int &fault)
 {
-    uint32_t data = 0;
+    uint32_t align_mask = (0x1 << size) - 0x1;
+    if (addr & align_mask) {
+        fault = LOAD_ADDR_MISALIGN;
+        return false;
+    }
+    
     if (size == 0) {
         uint8_t ld8 = (uint8_t)as->read_atomic(addr, 1);
-        data = sign ? (uint32_t)(int32_t)(int8_t)ld8 : ld8;
+        value = sign ? (uint32_t)(int32_t)(int8_t)ld8 : ld8;
     } else if (size == 1) {
         uint16_t ld16 = (uint16_t)as->read_atomic(addr, 2);
-        data = sign ? (uint32_t)(int32_t)(int16_t)ld16 : ld16;
+        value = sign ? (uint32_t)(int32_t)(int16_t)ld16 : ld16;
     } else if (size == 2) {
         uint32_t ld32 = (uint32_t)as->read_atomic(addr, 4);
-        data = ld32;
+        value = ld32;
     }
     
     std::cout << "[SIM] "
         << "Mem LD @ " << std::hex << addr << std::dec
         << ", Size: " << size
-        << ", Data: " << std::hex << data << std::dec
+        << ", Data: " << std::hex << value << std::dec
         << std::endl;
     
-    return data;
+    return true;
 }
 
-inline void
-TraceSimDriver::executeG_ST(uint32_t addr, int size, uint32_t value)
+inline bool
+TraceSimDriver::executeG_ST(uint32_t addr, int size, uint32_t value, int &fault)
 {
+    uint32_t align_mask = (0x1 << size) - 0x1;
+    if (addr & align_mask) {
+        fault = STORE_ADDR_MISALIGN;
+        return false;
+    }
+    
     if (size == 0) {
         as->write_atomic(addr, 1, (uint8_t)value);
     } else if (size == 1) {
@@ -926,6 +1134,8 @@ TraceSimDriver::executeG_ST(uint32_t addr, int size, uint32_t value)
         << ", Size: " << size
         << ", Data: " << std::hex << value << std::dec
         << std::endl;
+    
+    return true;
 }
 
 inline void
@@ -1170,8 +1380,31 @@ TraceSimDriver::executeG(InstrEncode &encode)
         break;
     case 0b1110011: // ECALL/EBREAK/CSRRW/CSRRS/CSRRC/CSRRWI/CSRRSI/CSRRCI
         switch (encode.func3) {
-        case 0b000: // ECALL/EBREAK
-            EXECUTE_UNKNOWN(encode);
+        case 0b000: // ECALL/EBREAK/URET/SRET/MRET/WFI/SFENCE.VMA
+            if (encode.func7 == 0b0001001) { // SFENCE.VMA
+            } else if (encode.rs2 == 0b00101 && encode.func7 == 0b0001000) { // WFI
+            } else if (encode.rs2 == 0b00010) { // URET/SRET/MRET
+                switch (encode.func7) {
+                case 0b0000000: // URET
+                    EXECUTE_RET(0);
+                    break;
+                case 0b0001000: // SRET
+                    EXECUTE_RET(1);
+                    break;
+                case 0b0011000: // MRET
+                    EXECUTE_RET(3);
+                    break;
+                default:
+                    EXECUTE_UNKNOWN(encode);
+                    break;
+                }
+            } else if (encode.typeI.imm110 == 0) { // ECALL
+                EXECUTE_ECALL();
+            } else if (encode.typeI.imm110 == 1) { // EBREAK
+                EXECUTE_EBREAK();
+            } else {
+                EXECUTE_UNKNOWN(encode);
+            }
             break;
         case 0b001: // CSRRW
             EXECUTE_CSR(encode.rd, readGPR(encode.rs1), extendCSR(encode), encode.rd, true, OP_CSR_SWAP);
@@ -1223,7 +1456,7 @@ TraceSimDriver::executeQ2(InstrEncode &encode)
             // 0 ~ C.JR   -> jalr x0, 0(rs1)
             EXECUTE_JAL(encode.cfunc1 ? 1 : 0, readGPR(encode.crdrs1), 0);
         } else { // C.EBREAK
-            EXECUTE_UNKNOWN(encode);
+            EXECUTE_EBREAK();
         }
         break;
     case 0b110: // C.SWSP
@@ -1380,7 +1613,8 @@ int
 TraceSimDriver::reset(uint64_t entry)
 {
     state.pc = entry;
-    state.priv = 3;
+    state.priv = PRIV_MACHINE;
+    state.isa.c = 1;
     
     for (int i = 0; i < 32; i++) {
         state.gpr[i] = 0;
@@ -1409,19 +1643,20 @@ TraceSimDriver::cycle(uint64_t num_cycles)
     
     // Execute
     InstrEncode encode = { .value = instr };
-    switch (encode.quad) {
-    case 0: // quadrant 0
-        executeQ0(encode);
-        break;
-    case 1: // quadrant 1
-        executeQ1(encode);
-        break;
-    case 2: // quadrant 2
-        executeQ2(encode);
-        break;
-    case 3: // normal
+    
+    if (encode.quad == 0x3) { // normal
         executeG(encode);
-        break;
+    } else { // compressed
+        if (!state.isa.c) {
+            EXECUTE_UNKNOWN(encode);
+        } else {
+            switch (encode.quad) {
+            case 0: executeQ0(encode); break;
+            case 1: executeQ1(encode); break;
+            case 2: executeQ2(encode); break;
+            default: EXECUTE_UNKNOWN(encode); break;
+            }
+        }
     }
     
     numInstrs++;
