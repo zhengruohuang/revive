@@ -17,6 +17,7 @@ struct TraceMachineState
     CSRstatus status;
     CSRint inte;
     CSRint intp;
+    CSRint inthw;
     CSRatp trans;
     
     uint64_t perf[32];
@@ -47,7 +48,7 @@ private:
         USER_EXTERNAL,
         SUPERVISOR_EXTERNAL,
         HYPERVISOR_EXTERNAL,
-        MACHINE_EXTERNAL,   
+        MACHINE_EXTERNAL,
     };
     
     enum ExceptCode {
@@ -75,6 +76,7 @@ private:
     std::ofstream out;
     
     uint64_t numInstrs;
+    uint32_t incomingInterrupts;
     TraceMachineState state;
     
     bool checkPaddr(uint64_t paddr, bool read, bool write, bool exec, int &fault, int access_fault);
@@ -91,8 +93,8 @@ private:
                bool wb_valid, int wb_idx, uint32_t wb_data);
     
     void exceptEnter(uint32_t code, uint32_t tval);
-    //void interruptCheck();
     void trapReturn(int from_priv);
+    void interrupt();
     
     bool executeG_LD(uint32_t addr, bool sign, int size, uint32_t &value, int &fault);
     bool executeG_ST(uint32_t addr, int size, uint32_t value, int &fault);
@@ -112,6 +114,9 @@ public:
     
     int reset(uint64_t entry);
     int cycle(uint64_t num_cycles);
+    
+    void fire(uint32_t type) { state.inthw.value |= type; }
+    void clear(uint32_t type) { state.inthw.value &= ~type; }
 };
 
 

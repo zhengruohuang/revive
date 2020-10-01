@@ -1,4 +1,5 @@
 COLOR_MSG = '\033[0;93m'
+COLOR_ITEM = '\033[0;34m'
 COLOR_PASS = '\033[0;32m'
 COLOR_FAIL = '\033[0;31m'
 COLOR_NONE = '\033[0m'
@@ -19,7 +20,7 @@ VERILATOR_FLAGS = -O3 -sv +1800-2017ext+sv -Irtl -CFLAGS "-O3"
 VERILATOR_DIR = /usr/share/verilator
 VERILATOR_MODEL_AR = $(TARGET)/rtl/Vrevive__ALL.a
 
-SIM_OBJ_LIST = main.o base.o as.o mem.o ctrl.o sim.o cmd.o load.o rtl.o trace.o
+SIM_OBJ_LIST = main.o base.o as.o mem.o ctrl.o sim.o cmd.o load.o rtl.o trace.o clint.o
 SIM_OBJ_TOP = top.o
 SIM_OBJ_VERILATED = verilated.o
 SIM_OBJS = $(addprefix $(TARGET)/sim/, $(SIM_OBJ_LIST) $(SIM_OBJ_TOP) $(SIM_OBJ_VERILATED))
@@ -106,9 +107,11 @@ mkdir_model:
 	@mkdir -p $(TARGET)/rtl
 
 $(VERILATOR_MODEL_AR): $(TARGET)/rtl/Vrevive.mk
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	cd $(TARGET)/rtl && make -f Vrevive.mk && cd ../..
 
 $(TARGET)/rtl/Vrevive.mk: rtl/*.sv rtl/*/*.sv rtl/*/*.svh rtl/*/*/*.sv
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(VERILATOR) $(VERILATOR_FLAGS) -cc -Mdir $(TARGET)/rtl rtl/revive.sv
 
 
@@ -125,16 +128,22 @@ mkdir_sim:
 	@echo ${COLOR_MSG}[BUILD]${COLOR_NONE} ${BOLD_ON}Building simulation driver${BOLD_OFF}
 	@mkdir -p $(TARGET)/sim
 
+$(TARGET)/rtl/Vrevive.h: build_model
+
 $(TARGET)/sim/sim: $(SIM_OBJS) $(VERILATOR_MODEL_AR)
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 $(TARGET)/sim/$(SIM_OBJ_VERILATED): $(VERILATOR_DIR)/include/verilated.cpp
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(CXX) $(CXXFLAGS_VERILATED) -c $(CXXINC) -o $@ $<
 
 $(TARGET)/sim/$(SIM_OBJ_TOP): sim/top.cc sim/include/*.hh $(TARGET)/rtl/Vrevive.h
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(CXX) $(CXXFLAGS_TOP) -c $(CXXINC) -o $@ $<
 
 $(TARGET)/sim/%.o: sim/%.cc sim/include/*.hh $(TARGET)/rtl/Vrevive.h
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(CXX) $(CXXFLAGS) -c $(CXXINC) -o $@ $<
 
 
@@ -172,6 +181,7 @@ mkdir_program:
 	@mkdir -p $(TARGET)/programs
 
 $(TARGET)/programs/%: $(PROGRAM_SRC)/%.c $(PROGRAM_SRC)/libc/*.* $(PROGRAM_SRC)/include/*.*
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(PROGRAM_CC) $(PROGRAM_CFLAGS) $(PROGRAM_CINC) -T $(PROGRAM_SRC)/libc/link.ld -static -o $@ $< $(PROGRAM_SRC)/libc/*.c $(PROGRAM_SRC)/libc/*.S
 
 
@@ -190,6 +200,7 @@ mkdir_test:
 	@mkdir -p $(TARGET)/simple
 
 $(TARGET)/simple/%: $(TEST_SRC)/%.S $(TEST_SRC)/lib/*.* $(TEST_SRC)/include/*.*
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(TEST_AS) $(TEST_ASFLAGS) $(TEST_ASINC) -T $(TEST_SRC)/lib/link.ld -static -Wl,--build-id=none -o $@ $< $(TEST_SRC)/lib/*.S
 
 
@@ -252,17 +263,22 @@ mkdir_compliance:
 	@mkdir -p $(TARGET)/compliance/rv32Zicsr
 
 $(TARGET)/compliance/rv32i/%: $(COMPLIANCE_SRC)/rv32i/src/%.S $(COMPLIANCE_SRC)/lib/*.* $(COMPLIANCE_SRC)/include/*.*
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(COMPLIANCE_AS) $(COMPLIANCE_ASFLAGS_I) $(COMPLIANCE_ASINC) -T $(COMPLIANCE_SRC)/lib/link.ld -o $@ $< $(COMPLIANCE_SRC)/lib/*.S
 
 $(TARGET)/compliance/rv32im/%: $(COMPLIANCE_SRC)/rv32im/src/%.S $(COMPLIANCE_SRC)/lib/*.* $(COMPLIANCE_SRC)/include/*.*
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(COMPLIANCE_AS) $(COMPLIANCE_ASFLAGS_IM) $(COMPLIANCE_ASINC) -T $(COMPLIANCE_SRC)/lib/link.ld -o $@ $< $(COMPLIANCE_SRC)/lib/*.S
 
 $(TARGET)/compliance/rv32imc/%: $(COMPLIANCE_SRC)/rv32imc/src/%.S $(COMPLIANCE_SRC)/lib/*.* $(COMPLIANCE_SRC)/include/*.*
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(COMPLIANCE_AS) $(COMPLIANCE_ASFLAGS_IMC) $(COMPLIANCE_ASINC) -T $(COMPLIANCE_SRC)/lib/link.ld -o $@ $< $(COMPLIANCE_SRC)/lib/*.S
 
 $(TARGET)/compliance/rv32Zifencei/%: $(COMPLIANCE_SRC)/rv32Zifencei/src/%.S $(COMPLIANCE_SRC)/lib/*.* $(COMPLIANCE_SRC)/include/*.*
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(COMPLIANCE_AS) $(COMPLIANCE_ASFLAGS_I) $(COMPLIANCE_ASINC) -T $(COMPLIANCE_SRC)/lib/link.ld -o $@ $< $(COMPLIANCE_SRC)/lib/*.S
 
 $(TARGET)/compliance/rv32Zicsr/%: $(COMPLIANCE_SRC)/rv32Zicsr/src/%.S $(COMPLIANCE_SRC)/lib/*.* $(COMPLIANCE_SRC)/include/*.*
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(COMPLIANCE_AS) $(COMPLIANCE_ASFLAGS_I) $(COMPLIANCE_ASINC) -T $(COMPLIANCE_SRC)/lib/link.ld -o $@ $< $(COMPLIANCE_SRC)/lib/*.S
 

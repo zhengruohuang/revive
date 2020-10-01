@@ -34,6 +34,9 @@ public:
     
     int reset(uint64_t entry);
     int cycle(uint64_t num_cycles);
+    
+    void fire(uint32_t type) { }
+    void clear(uint32_t type) { }
 };
 
 

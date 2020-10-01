@@ -1,8 +1,10 @@
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <cstdint>
 #include "debug.hh"
 #include "sim.hh"
+#include "as.hh"
 #include "trace.hh"
 
 
@@ -143,7 +145,7 @@ TraceSimDriver::readCSR(uint32_t csr, uint32_t &value)
         value = state.inte.value;
         return true;
     } else if (csr == 0x344) {  // mip
-        value = state.intp.value;
+        value = state.intp.value | state.inthw.value;
         return true;
     } else if (csr == 0x341) {  // mepc
         value = state.csr[0x341] & ~(state.isa.c ? 0x1 : 0x3);
@@ -158,10 +160,13 @@ TraceSimDriver::readCSR(uint32_t csr, uint32_t &value)
         value = state.inte.value;
         return true;
     } else if (csr == 0x144) {  // sip
-        value = state.intp.value;
+        value = state.intp.value | state.inthw.value;
         return true;
     } else if (csr == 0x141) {  // sepc
         value = state.csr[0x141] & ~(state.isa.c ? 0x1 : 0x3);
+        return true;
+    } else if (csr == 0x180) {  // satp
+        value = state.trans.value;
         return true;
     }
     
@@ -173,7 +178,7 @@ TraceSimDriver::readCSR(uint32_t csr, uint32_t &value)
         value = state.inte.value;
         return true;
     } else if (csr == 0x044) {  // uip
-        value = state.intp.value;
+        value = state.intp.value | state.inthw.value;
         return true;
     } else if (csr == 0x041) {  // uepc
         value = state.csr[0x041] & ~(state.isa.c ? 0x1 : 0x3);
@@ -196,11 +201,10 @@ TraceSimDriver::readCSR(uint32_t csr, uint32_t &value)
     }
     
     // Supervisor CSRs
-    if ((csr == 0x102 || csr == 0x103) ||   // sedeleg/sideleg/sie
+    if ((csr == 0x102 || csr == 0x103) ||   // sedeleg/sideleg
         (csr == 0x105 || csr == 0x106) ||   // stvec/scounteren
         (csr == 0x140)                 ||   // sscratch
-        (csr == 0x142 || csr == 0x143) ||   // scause/stval
-        (csr == 0x180)                      // satp
+        (csr == 0x142 || csr == 0x143)      // scause/stval
     ) {
         value = state.csr[csr];
         return true;
@@ -286,6 +290,9 @@ TraceSimDriver::writeCSR(uint32_t csr, uint32_t value)
     } else if (csr == 0x144) {  // sip
         state.intp.value = value;
         return true;
+    } else if (csr == 0x180) {  // satp
+        state.trans.value = value;
+        return true;
     }
     
     // User status/ie/ip
@@ -315,10 +322,9 @@ TraceSimDriver::writeCSR(uint32_t csr, uint32_t value)
     }
     
     // Supervisor CSRs
-    if ((csr == 0x102 || csr == 0x103) ||   // sedeleg/sideleg/sie
+    if ((csr == 0x102 || csr == 0x103) ||   // sedeleg/sideleg
         (csr == 0x105 || csr == 0x106) ||   // stvec/scounteren
-        (csr >= 0x140 && csr <= 0x143) ||   // sscratch/sepc/scause/stval
-        (csr == 0x180)                      // satp
+        (csr >= 0x140 && csr <= 0x143)      // sscratch/sepc/scause/stval
     ) {
         state.csr[csr] = value;
         return true;
@@ -696,14 +702,14 @@ TraceSimDriver::trace(uint64_t pc, InstrEncode &encode,
  * Trap
  */
 static inline uint32_t
-calculateTrapHandlerBase(uint32_t tvec, bool is_int, uint32_t cause)
+calculateTrapHandlerBase(uint32_t tvec, bool is_int, uint32_t int_code)
 {
     int mode = tvec & 0x3;
     uint32_t base = tvec & ~0x3;
     if (!mode || !is_int) {
         return base;
     } else {
-        return base + cause * 4;
+        return base + int_code * 4;
     }
 }
 
@@ -724,7 +730,7 @@ TraceSimDriver::exceptEnter(uint32_t code, uint32_t tval)
         //state.status.upp = state.priv;
         state.status.upie = state.status.uie;
         state.status.uie = 0;
-        state.pc = calculateTrapHandlerBase(state.csr[0x005], false, cause);
+        state.pc = calculateTrapHandlerBase(state.csr[0x005], false, 0);
         state.priv = PRIV_USER;
     }
     
@@ -736,7 +742,7 @@ TraceSimDriver::exceptEnter(uint32_t code, uint32_t tval)
         state.status.spp = state.priv;
         state.status.spie = state.status.sie;
         state.status.sie = 0;
-        state.pc = calculateTrapHandlerBase(state.csr[0x105], false, cause);
+        state.pc = calculateTrapHandlerBase(state.csr[0x105], false, 0);
         state.priv = PRIV_SUPERVISOR;
     }
     
@@ -748,7 +754,7 @@ TraceSimDriver::exceptEnter(uint32_t code, uint32_t tval)
         state.status.mpp = state.priv;
         state.status.mpie = state.status.mie;
         state.status.mie = 0;
-        state.pc = calculateTrapHandlerBase(state.csr[0x305], false, cause);
+        state.pc = calculateTrapHandlerBase(state.csr[0x305], false, 0);
         state.priv = PRIV_MACHINE;
     }
 }
@@ -780,6 +786,88 @@ TraceSimDriver::trapReturn(int from_priv)
     state.pc &= ~(state.isa.c ? 0x1 : 0x3);
     
     std::cout << "[RET] PC @ " << std::hex << state.pc << std::dec << std::endl;
+}
+
+
+/*
+ * Interrupt
+ */
+static uint32_t findFirstIntCode(uint32_t mask)
+{
+    static const int int_prio_count = 9;
+    static uint32_t int_prio[] = {
+        TraceSimDriver::INT_MACHINE_EXTERNAL, TraceSimDriver::INT_MACHINE_SOFTWARE, TraceSimDriver::INT_MACHINE_TIMER,
+        TraceSimDriver::INT_SUPERVISOR_EXTERNAL, TraceSimDriver::INT_SUPERVISOR_SOFTWARE, TraceSimDriver::INT_SUPERVISOR_TIMER,
+        TraceSimDriver::INT_USER_EXTERNAL, TraceSimDriver::INT_USER_SOFTWARE, TraceSimDriver::INT_USER_TIMER
+    };
+    static uint32_t int_prio_code[] = {
+        11, 7, 3,
+        9, 5, 1,
+        8, 4, 0
+    };
+    
+    for (int i = 0; i < int_prio_count; i++) {
+        uint32_t code = int_prio[i];
+        if (code & mask) {
+            return int_prio_code[i];
+        }
+    }
+    
+    panic("Unknown int mask: ", mask);
+    return -1;
+}
+
+inline void
+TraceSimDriver::interrupt()
+{
+    uint32_t int_mask = state.inte.value & (state.intp.value | state.inthw.value);
+    
+    // any int to be handled in M?
+    uint32_t int_mask_m = int_mask & ~state.csr[0x303];
+    if (int_mask_m &&(state.priv < PRIV_MACHINE || state.status.mie)) {
+        uint32_t code = findFirstIntCode(int_mask_m);
+        state.csr[0x341] = state.pc;
+        state.csr[0x342] = 0x80000000 | code;
+        state.csr[0x343] = 0;
+        state.status.mpp = state.priv;
+        state.status.mpie = state.status.mie;
+        state.status.mie = 0;
+        state.pc = calculateTrapHandlerBase(state.csr[0x305], true, code);
+        state.priv = PRIV_MACHINE;
+        return;
+    }
+    
+    // any int to be handled in S?
+    uint32_t int_mask_s = int_mask & state.csr[0x303] & ~state.csr[0x103];
+    if (int_mask_s && (state.priv < PRIV_SUPERVISOR ||
+                       (state.priv == PRIV_SUPERVISOR && state.status.sie))
+    ) {
+        uint32_t code = findFirstIntCode(int_mask_s);
+        state.csr[0x141] = state.pc;
+        state.csr[0x142] = 0x80000000 | code;
+        state.csr[0x143] = 0;
+        state.status.spp = state.priv;
+        state.status.spie = state.status.sie;
+        state.status.sie = 0;
+        state.pc = calculateTrapHandlerBase(state.csr[0x105], true, code);
+        state.priv = PRIV_SUPERVISOR;
+        return;
+    }
+    
+    // any int to be handled in U?
+    uint32_t int_mask_u = int_mask & state.csr[0x303] & state.csr[0x103];
+    if (int_mask_u && state.priv == PRIV_USER && state.status.sie) {
+        uint32_t code = findFirstIntCode(int_mask_u);
+        state.csr[0x041] = state.pc;
+        state.csr[0x042] = 0x80000000 | code;
+        state.csr[0x043] = 0;
+        //state.status.upp = state.priv;
+        state.status.upie = state.status.uie;
+        state.status.uie = 0;
+        state.pc = calculateTrapHandlerBase(state.csr[0x005], true, code);
+        state.priv = PRIV_USER;
+        return;
+    }
 }
 
 
@@ -1615,7 +1703,7 @@ TraceSimDriver::TraceSimDriver(const char *name, ArgParser *cmd,
                            SimulatedMachine *mach)
     : SimDriver(name, cmd),
       mach(mach), as(mach->getPhysicalAddressSpace()),
-      numInstrs(0)
+      numInstrs(0), incomingInterrupts(0)
 {
 }
 
@@ -1639,6 +1727,9 @@ TraceSimDriver::cleanup()
 int
 TraceSimDriver::reset(uint64_t entry)
 {
+    numInstrs = 0;
+    incomingInterrupts = 0;
+    
     state.pc = entry;
     for (int i = 0; i < 32; i++) {
         state.gpr[i] = 0;
@@ -1657,6 +1748,7 @@ TraceSimDriver::reset(uint64_t entry)
     state.status.value = 0;
     state.inte.value = 0;
     state.intp.value = 0;
+    state.inthw.value = 0;
     state.trans.value = 0;
     
     for (int i = 0; i < 32; i++) {
@@ -1698,6 +1790,9 @@ TraceSimDriver::cycle(uint64_t num_cycles)
             }
         }
     }
+    
+    // Interrupt
+    interrupt();
     
     numInstrs++;
     return 0;

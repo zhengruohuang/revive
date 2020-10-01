@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include "base.hh"
 #include "cmd.hh"
 #include "sim.hh"

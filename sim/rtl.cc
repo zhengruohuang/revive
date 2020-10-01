@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include "debug.hh"
 #include "sim.hh"
+#include "as.hh"
 #include "rtl.hh"
 
 
