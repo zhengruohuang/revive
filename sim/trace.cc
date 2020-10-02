@@ -801,9 +801,9 @@ static uint32_t findFirstIntCode(uint32_t mask)
         TraceSimDriver::INT_USER_EXTERNAL, TraceSimDriver::INT_USER_SOFTWARE, TraceSimDriver::INT_USER_TIMER
     };
     static uint32_t int_prio_code[] = {
-        11, 7, 3,
-        9, 5, 1,
-        8, 4, 0
+        11, 3, 7,
+        9, 1, 5,
+        8, 0, 4
     };
     
     for (int i = 0; i < int_prio_count; i++) {

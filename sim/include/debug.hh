@@ -6,6 +6,9 @@
 #include <iostream>
 
 
+extern void forceTerminate();
+
+
 static inline void debug_print() { std::cout << std::endl; }
 
 template<typename First, typename ...Rest>
@@ -25,7 +28,7 @@ static inline void debug_print(First &&first, Rest && ...rest)
                   << ", file: " << __FILE__                         \
                   << ", line: " << __LINE__ << std::endl;           \
         debug_print(__VA_ARGS__);                                   \
-        exit(-1);                                                   \
+        forceTerminate();                                           \
     } while (0)
 
 #define panic_if(cond, ...)                                         \

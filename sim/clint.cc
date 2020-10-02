@@ -133,6 +133,7 @@ void
 CoreLocalInterruptor::attachCore(SimDriver *core)
 {
     slots.push_back(core);
+
 }
 
 int
@@ -159,7 +160,8 @@ CoreLocalInterruptor::read_msip(int idx)
     if ((size_t)idx >= slots.size())
         return 0;
     
-    return slots[idx].msip;
+    CoreTimer &c = slots[idx];
+    return c.msip;
 }
 
 inline void
@@ -168,7 +170,13 @@ CoreLocalInterruptor::write_msip(int idx, uint32_t value)
     if ((size_t)idx >= slots.size())
         return;
     
-    slots[idx].msip = value & 0x1;
+    CoreTimer &c = slots[idx];
+    c.msip = value & 0x1;
+    if (c.msip) {
+        fire_msip(c.core);
+    } else {
+        clear_msip(c.core);
+    }
 }
 
 

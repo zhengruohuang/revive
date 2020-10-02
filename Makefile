@@ -32,6 +32,9 @@ CXXINC = -I$(VERILATOR_DIR)/include -I$(VERILATOR_DIR)/include/vltstd -I$(TARGET
 
 PROGRAM_SRC = tests/programs
 PROGRAM_LIST = towers fib qsort rsort
+ifdef TRACE
+PROGRAM_LIST += clint
+endif
 PROGRAMS = $(addprefix $(TARGET)/programs/, $(PROGRAM_LIST))
 PROGRAM_CC = riscv64-linux-gnu-gcc
 PROGRAM_CFLAGS = -O2 -g3 -nostdlib -fno-builtin -fno-stack-protector -fno-PIC -mcmodel=medany -march=rv32gc -mabi=ilp32 -std=c99 -Wall

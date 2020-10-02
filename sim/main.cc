@@ -52,6 +52,16 @@ bool openOutputFile(const char *name, std::ofstream &fs)
 
 
 /*
+ * Force terminate
+ */
+void forceTerminate()
+{
+    cleanupAllObjects();
+    exit(-1);
+}
+
+
+/*
  * Main
  */
 int main(int argc, char **argv)

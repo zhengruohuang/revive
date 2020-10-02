@@ -2,6 +2,7 @@
 #define __STDLIB_H__
 
 #include "inttypes.h"
+#include "stddef.h"
 
 extern int isdigit(int ch);
 extern int isxdigit(int ch);

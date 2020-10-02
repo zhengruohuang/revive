@@ -27,7 +27,7 @@ private:
         {
             core = c;
             mtimecmp_enabled = false;
-            mtimecmp = 0;
+            mtimecmp = -0x1ull;
             msip = 0;
         }
     };

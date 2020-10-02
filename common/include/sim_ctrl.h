@@ -4,6 +4,7 @@
 
 #define SIM_PHYS_MEM_START  (0x0)
 #define SIM_PHYS_MEM_SIZE   (0x8000000ul)
+#define SIM_PHYS_MEM_END    (0x8000000ul)
 
 
 #define SIM_CLINT_START     (0xe0000000ul)
@@ -26,6 +27,7 @@
 
 #define SIM_CTRL_BASE       (0xf0000000ul)
 #define SIM_CTRL_SIZE       (0x4000ul)
+#define SIM_CTRL_END        (0xf0004000ul)
 
 #define SIM_CTRL_ARGS       (SIM_CTRL_BASE + 0x0ul)
 #define SIM_CTRL_CMD        (SIM_CTRL_BASE + 0x1000ul)
