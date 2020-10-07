@@ -30,6 +30,20 @@ CXXFLAGS_TOP = $(CXXFLAGS) -faligned-new
 CXXFLAGS_VERILATED = $(CXXFLAGS) -Wno-sign-compare
 CXXINC = -I$(VERILATOR_DIR)/include -I$(VERILATOR_DIR)/include/vltstd -I$(TARGET)/rtl -Icommon/include -Isim/include
 
+DTC = dtc
+CC = gcc
+CFLAGS = -O3 -g -Wall -std=c99
+
+SBI_OBJ_LIST = start.o entry.o sbi.o printf.o trap.o timer.o ecall.o boot.o vmlinux.o dtb.o initrd.o
+SBI_OBJS = $(addprefix $(TARGET)/sbi/, $(SBI_OBJ_LIST))
+SBI = $(TARGET)/sbi/sbi
+SBI_CC = riscv64-linux-gnu-gcc
+SBI_CFLAGS = -O2 -nostdlib -fno-builtin -fno-stack-protector -fno-PIC -mcmodel=medany -march=rv32g -mabi=ilp32 -std=c99 -Wall
+SBI_LD = riscv64-linux-gnu-ld
+SBI_LDFLAGS = -m elf32lriscv_ilp32 -static
+SBI_OBJCOPY = riscv64-linux-gnu-objcopy
+SBI_CINC = -Icommon/include -Isbi
+
 PROGRAM_SRC = tests/programs
 PROGRAM_LIST = towers fib qsort rsort
 ifdef TRACE
@@ -76,7 +90,8 @@ COMPLIANCE_ASINC = -Icommon/include -I$(COMPLIANCE_SRC)/include
 
 all: build compliance programs
 
-build: mkdir_target build_model build_sim build_program build_test build_compliance
+build: mkdir_target build_utils build_model build_sim build_sbi \
+       build_program build_test build_compliance
 
 rebuild: clean build
 
@@ -98,6 +113,19 @@ mkdir_target:
 		echo ${COLOR_MSG}[BUILD]${COLOR_NONE} ${BOLD_ON}Setting up $(TARGET)${BOLD_OFF}; \
 		mkdir -p $(RAMDISK)/revive/target; \
 	fi
+
+
+################################################################################
+# Build utils
+#
+build_utils: mkdir_utils $(TARGET)/utils/bin2c
+
+mkdir_utils:
+	@echo ${COLOR_MSG}[BUILD]${COLOR_NONE} ${BOLD_ON}Building utils${BOLD_OFF}
+	@mkdir -p $(TARGET)/utils
+
+$(TARGET)/utils/bin2c: common/utils/bin2c.c
+	$(CC) $(CFLAGS) -o $@ $<
 
 
 ################################################################################
@@ -148,6 +176,70 @@ $(TARGET)/sim/$(SIM_OBJ_TOP): sim/top.cc sim/include/*.hh $(TARGET)/rtl/Vrevive.
 $(TARGET)/sim/%.o: sim/%.cc sim/include/*.hh $(TARGET)/rtl/Vrevive.h
 	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(CXX) $(CXXFLAGS) -c $(CXXINC) -o $@ $<
+
+
+################################################################################
+# SBI
+#
+build_sbi: mkdir_sbi $(SBI)
+#$(TARGET)/sbi/boot
+
+mkdir_sbi:
+	@echo ${COLOR_MSG}[BUILD]${COLOR_NONE} ${BOLD_ON}Building MiniSBI${BOLD_OFF}
+	@mkdir -p $(TARGET)/sbi
+
+$(TARGET)/sbi/vmlinux.c: $(TARGET)/sbi/vmlinux.bin
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
+	$(TARGET)/utils/bin2c --bin $< --c $@ --symbol vmlinux --align 16777216 --section .payload.vmlinux
+	#$(TARGET)/utils/bin2c --bin $< --c $@ --symbol vmlinux --align 8 --section .payload.vmlinux
+
+$(TARGET)/sbi/vmlinux.bin: sbi/payload/vmlinux
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
+	$(SBI_OBJCOPY) -O binary $< $@
+
+$(TARGET)/sbi/dtb.c: $(TARGET)/sbi/soc.dtb
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
+	$(TARGET)/utils/bin2c --bin $< --c $@ --symbol dtb --align 8 --section .payload.dtb
+
+$(TARGET)/sbi/soc.dtb: sbi/payload/soc.dts
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
+	$(DTC) -I dts -O dtb -o $@ $<
+
+$(TARGET)/sbi/initrd.c: sbi/payload/initramfs.cpio.gz
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
+	$(TARGET)/utils/bin2c --bin $< --c $@ --symbol initrd --align 8 --section .payload.initrd
+
+$(SBI): $(SBI_OBJS) sbi/link.ld
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
+	$(SBI_LD) $(SBI_LDFLAGS) -T sbi/link.ld -o $@ $(SBI_OBJS)
+
+$(TARGET)/sbi/vmlinux.o: $(TARGET)/sbi/vmlinux.c
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
+	$(SBI_CC) $(SBI_CFLAGS) $(SBI_CINC) -c -o $@ $<
+
+$(TARGET)/sbi/dtb.o: $(TARGET)/sbi/dtb.c
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
+	$(SBI_CC) $(SBI_CFLAGS) $(SBI_CINC) -c -o $@ $<
+
+$(TARGET)/sbi/initrd.o: $(TARGET)/sbi/initrd.c
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
+	$(SBI_CC) $(SBI_CFLAGS) $(SBI_CINC) -c -o $@ $<
+
+$(TARGET)/sbi/start.o: sbi/start.S
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
+	$(SBI_CC) $(SBI_CFLAGS) $(SBI_CINC) -c -o $@ $<
+
+$(TARGET)/sbi/entry.o: sbi/entry.S
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
+	$(SBI_CC) $(SBI_CFLAGS) $(SBI_CINC) -c -o $@ $<
+
+$(TARGET)/sbi/%.o: sbi/%.c sbi/*.h
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
+	$(SBI_CC) $(SBI_CFLAGS) $(SBI_CINC) -c -o $@ $<
+
+boot: mkdir_sbi
+	@echo ${COLOR_MSG}[ SIM ]${COLOR_NONE} ${BOLD_ON}Booting${BOLD_OFF};
+	$(TARGET)/sim/sim $(SIM_FLAGS) --kernel $(SBI)
 
 
 ################################################################################

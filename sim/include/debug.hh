@@ -38,7 +38,7 @@ static inline void debug_print(First &&first, Rest && ...rest)
                       << ", file: " << __FILE__                     \
                       << ", line: " << __LINE__ << std::endl;       \
             debug_print(__VA_ARGS__);                               \
-            exit(-1);                                               \
+            forceTerminate();                                       \
         }                                                           \
     } while (0)
 
@@ -58,7 +58,7 @@ static inline void debug_print(First &&first, Rest && ...rest)
             std::cout << "[ASSERT] Failed: " << #cond               \
                       << ", file: " << __FILE__                     \
                       << ", line: " << __LINE__ << std::endl;       \
-            exit(-1);                                               \
+            forceTerminate();                                       \
         }                                                           \
     } while (0)
 
@@ -69,7 +69,7 @@ static inline void debug_print(First &&first, Rest && ...rest)
                       << ", file: " << __FILE__                     \
                       << ", line: " << __LINE__ << std::endl;       \
             debug_print(__VA_ARGS__);                               \
-            exit(-1);                                               \
+            forceTerminate();                                       \
         }                                                           \
     } while (0)
 

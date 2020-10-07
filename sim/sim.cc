@@ -1,6 +1,7 @@
 #include <iostream>
 #include <iomanip>
 #include <cstdlib>
+#include <chrono>
 #include "sim_ctrl.h"
 #include "debug.hh"
 #include "sim.hh"
@@ -18,7 +19,7 @@
  */
 SimulatedMachine::SimulatedMachine(const char *name, ArgParser *cmd)
     : SimObject(name, cmd),
-      entry(0), term(false), termCode(0)
+      entry(0), term(false), termCode(0), termCycle(0)
 {
     // Parse arguments
     cmd->addSetTrue("trace", "-T", "--trace");
@@ -68,10 +69,18 @@ SimulatedMachine::~SimulatedMachine()
 void
 SimulatedMachine::printConfig()
 {
-    std::cout << "[SIM] Simulation Configuration" << std::endl
-        << "[SIM]   Max num cycles: " << maxCycles << std::endl
-        << "[SIM]   Entry @ " << std::hex << entry << std::dec << std::endl
+    std::cout << "[SIM] Simulation Configuration\n"
+        << "[SIM]   Max num cycles: " << maxCycles << "\n"
+        << "[SIM]   Entry @ " << std::hex << entry << std::dec
         << std::endl;
+}
+
+static uint64_t
+durationSeconds(std::chrono::steady_clock::time_point &start_time)
+{
+    auto end_time = std::chrono::steady_clock::now();
+    uint64_t s = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count();
+    return s;
 }
 
 void
@@ -84,28 +93,38 @@ SimulatedMachine::run()
     driver->reset(entry);
     
     // Real simulation
+    std::cout << "[SIM] Simulation started" << std::endl;
+    std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
+    
     int err = 0;
     while (!err) {
-        std::cout
+        LOG(std::cout
             << "---------------------------------------------------------------"
             << std::endl
             << "[SIM] Cycle @ " << numCycles
-            << std::endl;
+            << std::endl);
         
         err = driver->cycle(numCycles);
         err |= clint->cycle(numCycles);
         numCycles++;
         
-        std::cout
+        LOG(std::cout
             << "---------------------------------------------------------------"
-            << std::endl << std::endl;
+            << std::endl << std::endl);
+        
+        if (numCycles % 100000000 == 0) {
+            std::cout
+                << "[SIM] Cycles: " << numCycles
+                << ", seconds: " << durationSeconds(start_time)
+                << std::endl;
+        }
         
         if (maxCycles && numCycles >= maxCycles) {
             std::cout
                 << "[SIM] Max cycle reached: " << maxCycles
                 << std::endl;
             break;
-        } else if (term) {
+        } else if (term && numCycles >= termCycle) {
             std::cout
                 << "[SIM] Termination signal received: " << termCode
                 << std::endl;
@@ -120,14 +139,17 @@ SimulatedMachine::run()
     
     // Done
     std::cout
-        << "[SIM] Simulation done, simulated number of cycles: " << numCycles
+        << "[SIM] Simulation done"
+        << ", cycles: " << numCycles
+        << ", seconds: " << durationSeconds(start_time)
         << std::endl;
 }
 
 void
-SimulatedMachine::terminate(int code)
+SimulatedMachine::terminate(int code, uint64_t delay)
 {
     term = true;
     termCode = code;
+    termCycle = numCycles + delay;
 }
 

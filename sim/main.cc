@@ -7,6 +7,7 @@
 
 static ArgParser *cmd = nullptr;
 static SimulatedMachine *mach = nullptr;
+int logLevel = 0;
 
 ArgParser *getArgParser()
 {
@@ -28,8 +29,6 @@ bool openInputFile(const char *name, std::ifstream &fs)
     
     fs.open(name);
     if (!fs.is_open()) {
-        //notify(NOTIFY_WARN)
-        //    << "Unable to open input file @ " << name << endl;
         return false;
     }
     
@@ -42,8 +41,6 @@ bool openOutputFile(const char *name, std::ofstream &fs)
     
     fs.open(name, std::ios::out | std::ios::trunc);
     if (!fs.is_open()) {
-        //notify(NOTIFY_WARN)
-        //    << "Unable to open output file @ " << name << endl;
         return false;
     }
     
@@ -57,6 +54,7 @@ bool openOutputFile(const char *name, std::ofstream &fs)
 void forceTerminate()
 {
     cleanupAllObjects();
+    std::cout << std::flush;
     exit(-1);
 }
 

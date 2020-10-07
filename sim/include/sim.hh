@@ -7,6 +7,10 @@
 #include "cmd.hh"
 
 
+extern int logLevel;
+#define LOG(any) if (logLevel) { (any); } else do { } while (0)
+
+
 class PhysicalAddressSpace;
 class MainMemory;
 class SimulationControl;
@@ -49,6 +53,7 @@ private:
     
     bool term;
     int termCode;
+    uint64_t termCycle;
     
     PhysicalAddressSpace *as;
     MainMemory *mainMemory;
@@ -68,7 +73,7 @@ public:
     void printConfig();
     
     void run();
-    void terminate(int code);
+    void terminate(int code, uint64_t delay = 0);
 };
 
 
