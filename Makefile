@@ -15,6 +15,12 @@ ifdef TRACE
 SIM_FLAGS += --trace
 endif
 
+DTC = dtc
+CC = gcc
+CFLAGS = -O3 -g -Wall -std=c99
+CXX = g++
+CXXFLAGS = -O3 -g -Wall -std=c++11
+
 VERILATOR = verilator
 VERILATOR_FLAGS = -O3 -sv +1800-2017ext+sv -Irtl -CFLAGS "-O3"
 VERILATOR_DIR = /usr/share/verilator
@@ -24,15 +30,9 @@ SIM_OBJ_LIST = main.o base.o as.o mem.o ctrl.o sim.o cmd.o load.o rtl.o trace.o 
 SIM_OBJ_TOP = top.o
 SIM_OBJ_VERILATED = verilated.o
 SIM_OBJS = $(addprefix $(TARGET)/sim/, $(SIM_OBJ_LIST) $(SIM_OBJ_TOP) $(SIM_OBJ_VERILATED))
-CXX = g++
-CXXFLAGS = -O3 -g -Wall -std=c++11
-CXXFLAGS_TOP = $(CXXFLAGS) -faligned-new
-CXXFLAGS_VERILATED = $(CXXFLAGS) -Wno-sign-compare
-CXXINC = -I$(VERILATOR_DIR)/include -I$(VERILATOR_DIR)/include/vltstd -I$(TARGET)/rtl -Icommon/include -Isim/include
-
-DTC = dtc
-CC = gcc
-CFLAGS = -O3 -g -Wall -std=c99
+SIM_CXXFLAGS_TOP = $(CXXFLAGS) -faligned-new
+SIM_CXXFLAGS_VERILATED = $(CXXFLAGS) -Wno-sign-compare
+SIM_CXXINC = -I$(VERILATOR_DIR)/include -I$(VERILATOR_DIR)/include/vltstd -I$(TARGET)/rtl -Icommon/include -Isim/include
 
 SBI_OBJ_LIST = start.o entry.o sbi.o printf.o trap.o timer.o uart.o ecall.o boot.o vmlinux.o dtb.o initrd.o
 SBI_OBJS = $(addprefix $(TARGET)/sbi/, $(SBI_OBJ_LIST))
@@ -178,31 +178,29 @@ $(TARGET)/sim/sim: $(SIM_OBJS) $(VERILATOR_MODEL_AR)
 
 $(TARGET)/sim/$(SIM_OBJ_VERILATED): $(VERILATOR_DIR)/include/verilated.cpp
 	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
-	$(CXX) $(CXXFLAGS_VERILATED) -c $(CXXINC) -o $@ $<
+	$(CXX) $(SIM_CXXFLAGS_VERILATED) -c $(SIM_CXXINC) -o $@ $<
 
 $(TARGET)/sim/$(SIM_OBJ_TOP): sim/top.cc sim/include/*.hh $(TARGET)/rtl/Vrevive.h
 	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
-	$(CXX) $(CXXFLAGS_TOP) -c $(CXXINC) -o $@ $<
+	$(CXX) $(SIM_CXXFLAGS_TOP) -c $(SIM_CXXINC) -o $@ $<
 
 $(TARGET)/sim/%.o: sim/%.cc sim/include/*.hh $(TARGET)/rtl/Vrevive.h
 	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
-	$(CXX) $(CXXFLAGS) -c $(CXXINC) -o $@ $<
+	$(CXX) $(CXXFLAGS) -c $(SIM_CXXINC) -o $@ $<
 
 
 ################################################################################
 # SBI
 #
 build_sbi: mkdir_sbi $(SBI)
-#$(TARGET)/sbi/boot
 
 mkdir_sbi:
-	@echo ${COLOR_MSG}[BUILD]${COLOR_NONE} ${BOLD_ON}Building MiniSBI${BOLD_OFF}
+	@echo ${COLOR_MSG}[BUILD]${COLOR_NONE} ${BOLD_ON}Building miniSBI${BOLD_OFF}
 	@mkdir -p $(TARGET)/sbi
 
 $(TARGET)/sbi/vmlinux.c: $(TARGET)/sbi/vmlinux.bin
 	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(TARGET)/utils/bin2c --bin $< --c $@ --symbol vmlinux --align 16777216 --section .payload.vmlinux
-	#$(TARGET)/utils/bin2c --bin $< --c $@ --symbol vmlinux --align 8 --section .payload.vmlinux
 
 $(TARGET)/sbi/vmlinux.bin: sbi/payload/vmlinux
 	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
@@ -248,7 +246,7 @@ $(TARGET)/sbi/%.o: sbi/%.c sbi/*.h
 	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(SBI_CC) $(SBI_CFLAGS) $(SBI_CINC) -c -o $@ $<
 
-boot: mkdir_sbi
+boot: build
 	@echo ${COLOR_MSG}[ SIM ]${COLOR_NONE} ${BOLD_ON}Booting${BOLD_OFF};
 	$(TARGET)/sim/sim $(SIM_FLAGS) --kernel $(SBI)
 

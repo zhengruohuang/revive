@@ -19,8 +19,20 @@ struct TraceMachineState
     CSRint intp;
     CSRint inthw;
     CSRatp trans;
+    uint32_t scratch[4];
+    uint32_t tvec[4];
+    uint32_t epc[4];
+    uint32_t cause[4];
+    uint32_t tval[4];
     
+    uint32_t pmpcfg[4];
+    uint32_t pmpaddr[16];
+    
+    uint32_t countinhibit;
+    uint32_t counteren[4];
+    uint32_t hpmevent[32];
     uint64_t perf[32];
+    
     uint32_t csr[4096];
 };
 

@@ -265,7 +265,6 @@ TraceSimDriver::readCSR(uint32_t csr, uint32_t &value)
                    state.priv == 1 ? (mask & state.csr[0x306] ? true : false) :
                    state.priv == 0 ? (mask & state.csr[0x306] & state.csr[0x106] ? true : false) :
                    false;
-        //acc = true; // FIXME
         if (!acc)
             return false;
         
