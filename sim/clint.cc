@@ -142,7 +142,7 @@ CoreLocalInterruptor::cycle(uint64_t num_cycles)
     mtime++;
     
     for (auto &c: slots) {
-        if (c.mtimecmp_enabled && c.mtimecmp == mtime) {
+        if (c.mtimecmp_enabled && c.mtimecmp <= mtime) {
             fire_mtime(c.core);
             c.mtimecmp_enabled = false;
         } else {

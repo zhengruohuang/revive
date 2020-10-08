@@ -15,6 +15,7 @@ class PhysicalAddressSpace;
 class MainMemory;
 class SimulationControl;
 class CoreLocalInterruptor;
+class UniAsyncRxTx;
 
 class SimDriver : public SimObject
 {
@@ -59,6 +60,7 @@ private:
     MainMemory *mainMemory;
     SimulationControl *simCtrl;
     CoreLocalInterruptor *clint;
+    UniAsyncRxTx *uart0;
     
     uint64_t numCycles;
     uint64_t maxCycles;

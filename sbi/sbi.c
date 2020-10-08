@@ -7,12 +7,6 @@
 /*
  * Sim ctrl
  */
-void sim_putchar(int ch)
-{
-    volatile char *buf = (void *)SIM_CTRL_PUTCHAR;
-    *buf = (char)ch;
-}
-
 void sim_term(int code)
 {
     volatile int *buf = (void *)SIM_CTRL_TERM;

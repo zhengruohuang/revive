@@ -9,7 +9,7 @@
  */
 static inline int __putchar(int ch)
 {
-    sim_putchar(ch);
+    uart_putchar(ch);
     return 1;
 }
 

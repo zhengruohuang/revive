@@ -15,10 +15,10 @@ static void timer_handler(struct mtrap_context *ctxt)
     csr_set(mip, 0x1 << 5);
 }
 
-void set_timer_delta(uint64_t delta)
+void set_timer_event(uint64_t mtimecmp)
 {
-    uint64_t mtime = io_read64(CLINT_MTIME_ADDR);
-    uint64_t mtimecmp = mtime + delta;
+    //uint64_t mtime = io_read64(CLINT_MTIME_ADDR);
+    //uint64_t mtimecmp = mtime + delta;
     io_write64(CLINT_MTIMECMP_ADDR, mtimecmp);
     
     csr_clear(mip, 0x1 << 7);
@@ -26,7 +26,7 @@ void set_timer_delta(uint64_t delta)
     //csr_set(mie, 0x1 << 5);
     csr_set(mie, 0x1 << 7);
     
-    //printf("[SBI] Set timer delta, mtime: %llx, delta: %llx\n", mtime, delta);
+    //printf("[SBI] Timer: %llu, next: %llu\n", mtime, mtimecmp);
 }
 
 void init_timer()

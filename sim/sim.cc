@@ -2,13 +2,16 @@
 #include <iomanip>
 #include <cstdlib>
 #include <chrono>
+
 #include "sim_ctrl.h"
 #include "debug.hh"
 #include "sim.hh"
+
 #include "as.hh"
 #include "mem.hh"
 #include "ctrl.hh"
 #include "clint.hh"
+#include "uart.hh"
 
 #include "rtl.hh"
 #include "trace.hh"
@@ -33,11 +36,14 @@ SimulatedMachine::SimulatedMachine(const char *name, ArgParser *cmd)
                                     SIM_CTRL_BASE, SIM_CTRL_SIZE);
     clint = new CoreLocalInterruptor("clint", cmd,
                                      SIM_CLINT_START, SIM_CLINT_SIZE);
+    uart0 = new UniAsyncRxTx("uart0", cmd, 0,
+                            SIM_UART0_START, SIM_UART0_SIZE);
     
     as = new PhysicalAddressSpace("phys_addr_space", cmd);
     as->addRange(mainMemory);
     as->addRange(simCtrl);
     as->addRange(clint);
+    as->addRange(uart0);
     
     // Load kernel
     bool loaded = loadElf(cmd->get("kernel")->valueString);
@@ -113,9 +119,11 @@ SimulatedMachine::run()
             << std::endl << std::endl);
         
         if (numCycles % 100000000 == 0) {
+            uint64_t seconds = durationSeconds(start_time);
             std::cout
                 << "[SIM] Cycles: " << numCycles
-                << ", seconds: " << durationSeconds(start_time)
+                << ", seconds: " << seconds
+                << ", " << (seconds ? numCycles / seconds : 0) << " cycles/s"
                 << std::endl;
         }
         
@@ -138,10 +146,12 @@ SimulatedMachine::run()
     }
     
     // Done
+    uint64_t seconds = durationSeconds(start_time);
     std::cout
         << "[SIM] Simulation done"
         << ", cycles: " << numCycles
-        << ", seconds: " << durationSeconds(start_time)
+        << ", seconds: " << seconds
+        << ", " << (seconds ? numCycles / seconds : 0) << " cycles/s"
         << std::endl;
 }
 

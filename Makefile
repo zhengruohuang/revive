@@ -20,7 +20,7 @@ VERILATOR_FLAGS = -O3 -sv +1800-2017ext+sv -Irtl -CFLAGS "-O3"
 VERILATOR_DIR = /usr/share/verilator
 VERILATOR_MODEL_AR = $(TARGET)/rtl/Vrevive__ALL.a
 
-SIM_OBJ_LIST = main.o base.o as.o mem.o ctrl.o sim.o cmd.o load.o rtl.o trace.o clint.o
+SIM_OBJ_LIST = main.o base.o as.o mem.o ctrl.o sim.o cmd.o load.o rtl.o trace.o clint.o uart.o
 SIM_OBJ_TOP = top.o
 SIM_OBJ_VERILATED = verilated.o
 SIM_OBJS = $(addprefix $(TARGET)/sim/, $(SIM_OBJ_LIST) $(SIM_OBJ_TOP) $(SIM_OBJ_VERILATED))
@@ -34,7 +34,7 @@ DTC = dtc
 CC = gcc
 CFLAGS = -O3 -g -Wall -std=c99
 
-SBI_OBJ_LIST = start.o entry.o sbi.o printf.o trap.o timer.o ecall.o boot.o vmlinux.o dtb.o initrd.o
+SBI_OBJ_LIST = start.o entry.o sbi.o printf.o trap.o timer.o uart.o ecall.o boot.o vmlinux.o dtb.o initrd.o
 SBI_OBJS = $(addprefix $(TARGET)/sbi/, $(SBI_OBJ_LIST))
 SBI = $(TARGET)/sbi/sbi
 SBI_CC = riscv64-linux-gnu-gcc
@@ -108,24 +108,35 @@ mkdir_target:
 		rm -f $(TARGET); \
 		mkdir -p $(RAMDISK)/revive/target && \
 		ln -s $(RAMDISK)/revive/target $(TARGET) && \
-		rm -rf $(TARGET)/*; \
+		rm -rf $(TARGET)/* && \
+		mkfifo $(TARGET)/uart.pipe1 && mkfifo $(TARGET)/uart.pipe2; \
 	elif [ ! -d "$(RAMDISK)/revive/target" ]; then \
 		echo ${COLOR_MSG}[BUILD]${COLOR_NONE} ${BOLD_ON}Setting up $(TARGET)${BOLD_OFF}; \
-		mkdir -p $(RAMDISK)/revive/target; \
+		mkdir -p $(RAMDISK)/revive/target && \
+		mkfifo $(TARGET)/uart.pipe1 && mkfifo $(TARGET)/uart.pipe2; \
 	fi
 
 
 ################################################################################
 # Build utils
 #
-build_utils: mkdir_utils $(TARGET)/utils/bin2c
+build_utils: mkdir_utils $(TARGET)/utils/bin2c $(TARGET)/utils/term
 
 mkdir_utils:
 	@echo ${COLOR_MSG}[BUILD]${COLOR_NONE} ${BOLD_ON}Building utils${BOLD_OFF}
 	@mkdir -p $(TARGET)/utils
 
 $(TARGET)/utils/bin2c: common/utils/bin2c.c
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(CC) $(CFLAGS) -o $@ $<
+
+$(TARGET)/utils/term: common/utils/term.cc
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
+	$(CXX) $(CXXFLAGS) -lpthread -o $@ $<
+
+term: $(TARGET)/utils/term
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
+	$(TARGET)/utils/term
 
 
 ################################################################################
@@ -163,7 +174,7 @@ $(TARGET)/rtl/Vrevive.h: build_model
 
 $(TARGET)/sim/sim: $(SIM_OBJS) $(VERILATOR_MODEL_AR)
 	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) -lpthread -o $@ $^
 
 $(TARGET)/sim/$(SIM_OBJ_VERILATED): $(VERILATOR_DIR)/include/verilated.cpp
 	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "

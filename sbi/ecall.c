@@ -49,11 +49,11 @@ static inline int get_mimpid(struct mtrap_context *ctxt, unsigned long *value)
 static inline int set_timer(struct mtrap_context *ctxt, unsigned long *value)
 {
 #if __riscv_xlen == 32
-    uint64_t delta = ((uint64_t)ctxt->gpr[11] << 32) | (uint64_t)ctxt->gpr[10];
+    uint64_t mtcmp = ((uint64_t)ctxt->gpr[11] << 32) | (uint64_t)ctxt->gpr[10];
 #else
-    uint64_t delta = ctxt->gpr[10];
+    uint64_t mtcmp = ctxt->gpr[10];
 #endif
-    set_timer_delta(delta);
+    set_timer_event(mtcmp);
     *value = 0;
     return SBI_SUCCESS;
 }
@@ -74,9 +74,7 @@ static inline int console_putchar(struct mtrap_context *ctxt, unsigned long *val
 {
     int ch = ctxt->gpr[10];
     if (ch) {
-        //printf("code: %u\n", ch);
-        volatile char *buf = (void *)SIM_CTRL_PUTCHAR;
-        *buf = (char)ch;
+        uart_putchar(ch);
     }
     *value = 0;
     return SBI_SUCCESS;
@@ -84,11 +82,8 @@ static inline int console_putchar(struct mtrap_context *ctxt, unsigned long *val
 
 static inline int console_getchar(struct mtrap_context *ctxt, unsigned long *value)
 {
-    // FIXME
-    return SBI_ERR_FAILED;
-    
-//    *value = 0;
-//    return SBI_ERR_NOT_SUPPORTED;
+    int ch = uart_getchar();
+    return ch ? ch & 0xff : -1;
 }
 
 static inline int remote_fence_i(struct mtrap_context *ctxt, unsigned long *value)

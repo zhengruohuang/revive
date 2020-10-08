@@ -951,7 +951,11 @@ TraceSimDriver::interrupt()
 
 #define EXECUTE_UNKNOWN(encode) do { \
         trace(state.pc, encode, false, state.pc, false, 0, 0); \
-        panic("Unknown instr!\n"); \
+        std::cerr << "PC @ " << std::hex << state.pc << std::dec \
+            << ", encode: " << std::hex << encode.value << std::dec \
+            << ", len: " << instr_len \
+            << std::endl; \
+        panic("Unknown instr\n"); \
         mach->terminate(-1); \
     } while (0)
 
@@ -1881,9 +1885,9 @@ TraceSimDriver::cycle(uint64_t num_cycles)
     }
     
     // Update counters
-    state.csr[0xc00]++;
-    state.csr[0xc01]++;
-    state.csr[0xc02]++;
+    state.perf[0]++;
+    state.perf[1]++;
+    state.perf[2]++;
     
     // Interrupt
     interrupt();

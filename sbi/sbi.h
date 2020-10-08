@@ -77,12 +77,14 @@ extern void reg_mexcept_handler(int code, mtrap_handler_t handler);
 
 extern void init_ecall();
 
-extern void set_timer_delta(uint64_t delta);
+extern void uart_putchar(int ch);
+extern int uart_getchar();
+
+extern void set_timer_event(uint64_t delta);
 extern void init_timer();
 
 extern void boot_supervisor();
 
-extern void sim_putchar(int ch);
 extern void sim_term(int code);
 
 #endif

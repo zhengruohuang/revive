@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <csignal>
 #include "base.hh"
 #include "cmd.hh"
 #include "sim.hh"
@@ -54,8 +55,21 @@ bool openOutputFile(const char *name, std::ofstream &fs)
 void forceTerminate()
 {
     cleanupAllObjects();
-    std::cout << std::flush;
+    std::cout << std::endl << std::flush;
+    std::cerr << std::endl
+        << "[SIM] Simulation terminated unexpectedly"
+        << std::endl << std::flush;
     exit(-1);
+}
+
+static void sigintHandler(int sig_num)
+{
+    cleanupAllObjects();
+    std::cout << std::endl << std::flush;
+    std::cerr << std::endl
+        << "[SIM] Simulation interrupted by user"
+        << std::endl << std::flush;
+    exit(0);
 }
 
 
@@ -78,7 +92,9 @@ int main(int argc, char **argv)
         return -1;
     }
     
+    signal(SIGINT, sigintHandler);
     mach->run();
+    signal(SIGINT, SIG_DFL);
     
     err = cleanupAllObjects();
     if (err) {
