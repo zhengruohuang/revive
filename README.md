@@ -121,7 +121,17 @@ To build and run everything with RTL model
 make
 ```
 
-To run everything with the C++ functional model
+To run everything with C++ ISA model
 ```bash
 TRACE=1 make
+```
+
+To boot Linux with C++ ISA model
+```bash
+TRACE=1 make boot
+```
+
+To interact with Linux through UART
+```bash
+make term
 ```
