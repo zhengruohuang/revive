@@ -2,6 +2,8 @@
 `include "include/instr.svh"
 
 module branch_unit (
+    input   [31:0] i_log_fd,
+    
     input                           i_e,
     input   decode_bru_op_t         i_op,
     input                           i_invert,
@@ -46,7 +48,10 @@ module branch_unit (
                 end
             endcase
             
-            $display("[BRU] src1: %h, src2: %h, invert: %d, met: %d", i_src1, i_src2, i_invert, cond_met);
+            if (i_log_fd != '0) begin
+                $fdisplay(i_log_fd, "[BRU] src1: %h, src2: %h, invert: %d, met: %d",
+                          i_src1, i_src2, i_invert, cond_met);
+            end
         end
     end
     

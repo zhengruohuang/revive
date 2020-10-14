@@ -18,6 +18,9 @@ module reg_fetch (
     // From WB
     input   int_arch_reg_wb_t   i_int_reg_wb,
     
+    // Log
+    input   [31:0] i_log_fd,
+    
     // Clock and Reset
     input   i_clk,
     input   i_rst_n
@@ -46,8 +49,11 @@ module reg_fetch (
         
         else if (~i_stall) begin
             o_instr <= i_instr;
-            $display("[RF ] Valid: %d, PC @ %h, Decode: %h, WB Valid: %d @ %d = %h",
-                     i_instr.valid, i_instr.pc, i_instr.decode, i_int_reg_wb.valid, i_int_reg_wb.idx, i_int_reg_wb.data);
+            
+            if (i_log_fd != '0) begin
+                $fdisplay(i_log_fd, "[RF ] Valid: %d, PC @ %h, Decode: %h, WB Valid: %d @ %d = %h",
+                          i_instr.valid, i_instr.pc, i_instr.decode, i_int_reg_wb.valid, i_int_reg_wb.idx, i_int_reg_wb.data);
+            end
         end
     end
 

@@ -16,7 +16,7 @@ typedef logic [`VADDR_WIDTH - 1:0] program_counter_t;
 function program_counter_t get_next_fetch_block_pc;
     input program_counter_t pc;
     begin
-        get_next_fetch_block_pc = { pc[`VADDR_WIDTH - 1:2] + 30'h1, pc[1:0] };
+        get_next_fetch_block_pc = { pc[`VADDR_WIDTH - 1:2] + 30'h1, 2'b0 };
     end
 endfunction
 

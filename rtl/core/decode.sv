@@ -13,6 +13,9 @@ module decode (
     // To next stage - Sched
     output  decoded_instr_t     o_instr,
     
+    // Log
+    input   [31:0] i_log_fd,
+    
     // Clock and Reset
     input   i_clk,
     input   i_rst_n
@@ -56,7 +59,11 @@ module decode (
         
         else if (~i_stall) begin
             o_instr <= next_instr;
-            $display("[ID ] Valid: %d, PC @ %h, Instr: %h, Decode: %h", i_instr.valid, i_instr.pc, i_instr.instr, next_instr.decode);
+            
+            if (i_log_fd != '0) begin
+                $fdisplay(i_log_fd, "[ID ] Valid: %d, PC @ %h, Instr: %h, Decode: %h",
+                          i_instr.valid, i_instr.pc, i_instr.instr, next_instr.decode);
+            end
         end
     end
 

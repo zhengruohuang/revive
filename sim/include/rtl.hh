@@ -2,6 +2,7 @@
 #define __RTL_HH__
 
 
+#include <cstdio>
 #include <cstdint>
 #include "sim.hh"
 
@@ -16,9 +17,7 @@ class RtlSimDriver: public SimDriver
 {
 private:
     Vrevive *top;
-    
-    SimulatedMachine *mach;
-    PhysicalAddressSpace *as;
+    FILE *commitf;
     
     void handleFetch();
     void handleLSU();
@@ -41,6 +40,7 @@ public:
 
 
 extern Vrevive *newVerilatorRtlTop(int argc, char **argv);
+extern int createVerilatorFileDescriptor(FILE *f);
 
 
 #endif

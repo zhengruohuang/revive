@@ -23,6 +23,11 @@ ArgParser::parse(ArgRecord *record)
                     parsedArgIndices.insert(i + 1);
                     record->valueString = argv[i + 1];
                     break;
+                case ArgRecord::INT:
+                    parsedArgIndices.insert(i);
+                    parsedArgIndices.insert(i + 1);
+                    record->valueInt = atoi(argv[i + 1]);
+                    break;
                 case ArgRecord::UINT64:
                     parsedArgIndices.insert(i);
                     parsedArgIndices.insert(i + 1);

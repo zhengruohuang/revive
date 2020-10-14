@@ -15,6 +15,8 @@ module mul_div_unit (
     output  logic               o_valid,
     output  reg_data_t          o_dest,
     
+    input   [31:0] i_log_fd,
+    
     input   i_clk,
     input   i_rst_n
 );
@@ -115,7 +117,7 @@ module mul_div_unit (
                 end
             end
             
-            $display("[MDU] New job, src1: %h, src2: %h", src1, src2);
+            //$display("[MDU] New job, src1: %h, src2: %h", src1, src2);
         end
         
         // Mul
@@ -126,8 +128,10 @@ module mul_div_unit (
                 dest <= neg ? product_neg[63:32] :
                         muh ? product[63:32] : product[31:0];
                 
-                $display("[MUL] Done, multiplicant: %h, multiplier: %h, product: %h, dest: %h\n",
-                         multiplicant, multiplier, product, dest);
+                if (i_log_fd != '0) begin
+                    $fdisplay(i_log_fd, "[MUL] Done, multiplicant: %h, multiplier: %h, product: %h, dest: %h\n",
+                              multiplicant, multiplier, product, dest);
+                end
             end else begin
                 product <= (multiplicant & {64{multiplier[0]}}) + product;
                 multiplicant <= { multiplicant[62:0], 1'b0 }; // multiplicant <<= 1
@@ -154,8 +158,10 @@ module mul_div_unit (
                     end
                 end
                 
-                $display("[DIV] Done, divident64: %h, divisor: %h, quotient: %h, step: %d\n",
-                         divident64, divisor[31:0], quotient, step);
+                if (i_log_fd != '0) begin
+                    $fdisplay(i_log_fd, "[DIV] Done, divident64: %h, divisor: %h, quotient: %h, step: %d\n",
+                              divident64, divisor[31:0], quotient, step);
+                end
             end
             
             else begin
@@ -168,8 +174,8 @@ module mul_div_unit (
                 divisor <= { 1'b0, divisor[63:1] };
                 step <= step + 6'b1;
                 
-                $display("[DIV] divident64: %h, divisor: %h, quotient: %h, step: %d\n",
-                        divident64, divisor[31:0], quotient, step);
+                //$display("[DIV] divident64: %h, divisor: %h, quotient: %h, step: %d\n",
+                //        divident64, divisor[31:0], quotient, step);
             end
         end
     end

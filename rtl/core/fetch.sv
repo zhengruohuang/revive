@@ -28,6 +28,9 @@ module fetch (
     // To next stage - IA
     output  fetched_data_t      o_data,
     
+    // Log
+    input   [31:0] i_log_fd,
+    
     // Clock and Reset
     input   i_clk,
     input   i_rst_n
@@ -35,9 +38,10 @@ module fetch (
 
     wire                        valid/*verilator public*/       = ~i_flush & ~i_stall;
     wire    reg_data_t          addr/*verilator public*/        = i_pc;
+    wire    reg_data_t          fetch_addr/*verilator public*/  = { i_pc[31:2], 2'b0 };
 
-            short_instr_t       ld_data0/*verilator public*/;
-            short_instr_t       ld_data1/*verilator public*/;
+            short_instr_t       fetch_data0/*verilator public*/;
+            short_instr_t       fetch_data1/*verilator public*/;
 
     /*
      * Output
@@ -50,8 +54,12 @@ module fetch (
         end
         
         else if (~i_stall) begin
-            o_data <= compose_fetched_data(i_pc, ld_data0, ld_data1, `EXCEPT_NONE, valid);
-            $display("[IF ] Valid: %d, PC @ %h, Data: %h-%h", valid, i_pc, ld_data0, ld_data1);
+            o_data <= compose_fetched_data(i_pc, fetch_data0, fetch_data1, `EXCEPT_NONE, valid);
+            
+            if (i_log_fd != '0) begin
+                $fdisplay(i_log_fd, "[IF ] Valid: %d, PC @ %h, Data: %h-%h",
+                          valid, i_pc, fetch_data0, fetch_data1);
+            end
         end
     end
 

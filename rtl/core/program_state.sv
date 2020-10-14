@@ -7,6 +7,9 @@ module program_state (
     
     output  program_state_t     o_ps,
     
+    // Log
+    input   [31:0] i_log_fd,
+    
     input   i_clk,
     input   i_rst_n
 );

@@ -248,7 +248,7 @@ $(TARGET)/sbi/%.o: sbi/%.c sbi/*.h
 
 boot: build
 	@echo ${COLOR_MSG}[ SIM ]${COLOR_NONE} ${BOLD_ON}Booting${BOLD_OFF};
-	$(TARGET)/sim/sim $(SIM_FLAGS) --kernel $(SBI)
+	$(TARGET)/sim/sim $(SIM_FLAGS) --kernel $(SBI) --log-file none --log-level 0 --commit-file none
 
 
 ################################################################################
@@ -260,9 +260,8 @@ programs: build
 	@for name in $(PROGRAM_LIST); do \
 		echo -n ${BOLD_ON}$$name${BOLD_OFF}; \
 		echo -n " @ "$(TARGET)/sim/sim $(SIM_FLAGS) --kernel $(TARGET)/programs/$$name; \
-		$(TARGET)/sim/sim $(SIM_FLAGS) --kernel $(TARGET)/programs/$$name > $(TARGET)/trace.txt && \
-		mv $(TARGET)/trace.txt $(TARGET)/programs/outputs/$$name.trace && \
-		mv $(TARGET)/commit.txt $(TARGET)/programs/outputs/$$name.commit && \
+		$(TARGET)/sim/sim $(SIM_FLAGS) --kernel $(TARGET)/programs/$$name --log-file none --commit-file none > $(TARGET)/stdout.txt && \
+		mv $(TARGET)/stdout.txt $(TARGET)/programs/outputs/$$name.stdout && \
 		mv $(TARGET)/out.txt $(TARGET)/programs/outputs/$$name.out && \
 		mv $(TARGET)/dump.txt $(TARGET)/programs/outputs/$$name.dump && \
 		common/utils/diff_out.py $(TARGET)/programs/outputs/$$name.out $(PROGRAM_SRC)/ref/$$name.out; \
@@ -317,9 +316,8 @@ define run_compliance_tests
 	for name in $(3); do \
 		echo -n ${BOLD_ON}$(1)/$$name${BOLD_OFF}; \
 		echo -n " @ "$(TARGET)/sim/sim $(SIM_FLAGS) --kernel $(TARGET)/compliance/$(2)/$$name; \
-		$(TARGET)/sim/sim $(SIM_FLAGS) --kernel $(TARGET)/compliance/$(2)/$$name > $(TARGET)/trace.txt && \
-		mv $(TARGET)/trace.txt $(TARGET)/compliance/$(2)/outputs/$$name.trace && \
-		mv $(TARGET)/commit.txt $(TARGET)/compliance/$(2)/outputs/$$name.commit && \
+		$(TARGET)/sim/sim $(SIM_FLAGS) --kernel $(TARGET)/compliance/$(2)/$$name --log-file none --commit-file none > $(TARGET)/stdout.txt && \
+		mv $(TARGET)/stdout.txt $(TARGET)/compliance/$(2)/outputs/$$name.stdout && \
 		mv $(TARGET)/out.txt $(TARGET)/compliance/$(2)/outputs/$$name.out && \
 		mv $(TARGET)/dump.txt $(TARGET)/compliance/$(2)/outputs/$$name.dump && \
 		common/utils/diff_compliance.py $(TARGET)/compliance/$(2)/outputs/$$name.dump $(COMPLIANCE_SRC)/$(2)/references/$$name.reference_output; \

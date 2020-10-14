@@ -13,8 +13,14 @@
 `include "core/writeback.sv"
 
 module revive (
+    // Init PC
     input   program_counter_t   i_init_pc,
     
+    // Log
+    input   [31:0] i_log_fd,
+    input   [31:0] i_commit_fd,
+    
+    // Clock and Reset
     input   i_clk,
     input   i_rst_n
 );
@@ -43,6 +49,7 @@ module revive (
         .i_alter        (to_ps_alter),
         .i_ps           (to_ps_ps),
         .o_ps           (from_ps_ps),
+        .i_log_fd       (i_log_fd),
         .i_clk          (i_clk),
         .i_rst_n        (i_rst_n)
     );
@@ -64,6 +71,7 @@ module revive (
         .i_alter        (to_pc_alter),
         .i_pc           (to_pc_pc),
         .o_pc           (from_pc_pc),
+        .i_log_fd       (i_log_fd),
         .i_clk          (i_clk),
         .i_rst_n        (i_rst_n)
     );
@@ -87,6 +95,7 @@ module revive (
         .i_ps           (to_if_ps),
         .o_stall        (from_if_stall),
         .o_data         (from_if_data),
+        .i_log_fd       (i_log_fd),
         .i_clk          (i_clk),
         .i_rst_n        (i_rst_n)
     );
@@ -108,6 +117,7 @@ module revive (
         .i_data         (to_ia_data),
         .o_stall        (from_ia_stall),
         .o_instr        (from_ia_instr),
+        .i_log_fd       (i_log_fd),
         .i_clk          (i_clk),
         .i_rst_n        (i_rst_n)
     );
@@ -127,6 +137,7 @@ module revive (
         .i_flush        (to_id_flush),
         .i_instr        (to_id_instr),
         .o_instr        (from_id_instr),
+        .i_log_fd       (i_log_fd),
         .i_clk          (i_clk),
         .i_rst_n        (i_rst_n)
     );
@@ -150,6 +161,7 @@ module revive (
         .o_stall        (from_is_stall),
         .o_instr        (from_is_instr),
         .i_int_reg_wb   (to_is_int_reg_wb),
+        .i_log_fd       (i_log_fd),
         .i_clk          (i_clk),
         .i_rst_n        (i_rst_n)
     );
@@ -175,6 +187,7 @@ module revive (
         .o_data_rs1     (from_rf_data_rs1),
         .o_data_rs2     (from_rf_data_rs2),
         .i_int_reg_wb   (to_rf_int_reg_wb),
+        .i_log_fd       (i_log_fd),
         .i_clk          (i_clk),
         .i_rst_n        (i_rst_n)
     );
@@ -206,6 +219,7 @@ module revive (
         .o_instr        (from_ex_instr),
         .o_data         (from_ex_data),
         .o_data_rs2     (from_ex_data_rs2),
+        .i_log_fd       (i_log_fd),
         .i_clk          (i_clk),
         .i_rst_n        (i_rst_n)
     );
@@ -233,6 +247,7 @@ module revive (
         .o_stall        (from_ls_stall),
         .o_instr        (from_ls_instr),
         .o_data         (from_ls_data),
+        .i_log_fd       (i_log_fd),
         .i_clk          (i_clk),
         .i_rst_n        (i_rst_n)
     );
@@ -262,6 +277,8 @@ module revive (
         .o_ps           (from_wb_ps),
         .o_pc_alter     (from_wb_pc_alter),
         .o_pc           (from_wb_pc),
+        .i_log_fd       (i_log_fd),
+        .i_commit_fd    (i_commit_fd),
         .i_clk          (i_clk),
         .i_rst_n        (i_rst_n)
     );

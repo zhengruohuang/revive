@@ -15,6 +15,9 @@ module schedule (
     // From WB
     input   int_arch_reg_wb_t   i_int_reg_wb,
     
+    // Log
+    input   [31:0] i_log_fd,
+    
     // Clock and Reset
     input   i_clk,
     input   i_rst_n
@@ -73,8 +76,11 @@ module schedule (
         
         else if (~i_stall) begin
             o_instr <= next_instr;
-            $display("[IS ] Valid: %d, PC @ %h, Decode: %h, CanIssue: %d, RS1: %d, RS2: %d, RD: %d, Next: %d, Inuse: %h",
-                     i_instr.valid, i_instr.pc, i_instr.decode, can_issue, rs1_ready, rs2_ready, rd_ready, next_instr.valid, int_reg_inuse);
+            
+            if (i_log_fd != '0) begin
+                $fdisplay(i_log_fd, "[IS ] Valid: %d, PC @ %h, Decode: %h, CanIssue: %d, RS1: %d, RS2: %d, RD: %d, Next: %d, Inuse: %h",
+                          i_instr.valid, i_instr.pc, i_instr.decode, can_issue, rs1_ready, rs2_ready, rd_ready, next_instr.valid, int_reg_inuse);
+            end
         end
     end
 

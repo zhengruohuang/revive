@@ -10,6 +10,8 @@ module sys_unit (
     
     output  [`DATA_WIDTH - 1:0]         o_dest,
     
+    input   [31:0] i_log_fd,
+    
     input   i_clk,
     input   i_rst_n
 );

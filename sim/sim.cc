@@ -104,19 +104,14 @@ SimulatedMachine::run()
     
     int err = 0;
     while (!err) {
-        LOG(std::cout
-            << "---------------------------------------------------------------"
-            << std::endl
-            << "[SIM] Cycle @ " << numCycles
-            << std::endl);
+        log_printf("--------------------------------------------------\n"
+                   "[SIM] Cycle @ %lu\n", numCycles);
         
         err = driver->cycle(numCycles);
         err |= clint->cycle(numCycles);
         numCycles++;
         
-        LOG(std::cout
-            << "---------------------------------------------------------------"
-            << std::endl << std::endl);
+        log_printf("--------------------------------------------------\n\n");
         
         if (numCycles % 100000000 == 0) {
             uint64_t seconds = durationSeconds(start_time);

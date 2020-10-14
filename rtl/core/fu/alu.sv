@@ -2,6 +2,8 @@
 `include "include/instr.svh"
 
 module arithmetic_unit (
+    input   [31:0] i_log_fd,
+    
     input                           i_e,
     input   decode_alu_op_t         i_op,
     input                           i_w32,
@@ -42,7 +44,10 @@ module arithmetic_unit (
                 default:    dest = '0;
             endcase
             
-            $display("[ALU] src1: %h, src2: %h, dest: %h", i_src1, i_src2, dest);
+            if (i_log_fd != '0) begin
+                $fdisplay(i_log_fd, "[ALU] src1: %h, src2: %h, dest: %h",
+                          i_src1, i_src2, dest);
+            end
         end
     end
 

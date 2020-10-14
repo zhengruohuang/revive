@@ -2,6 +2,8 @@
 `include "include/instr.svh"
 
 module addr_gen_unit (
+    input   [31:0] i_log_fd,
+    
     input                           i_e,
     
     input   reg_data_t              i_src1,

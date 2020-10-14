@@ -22,6 +22,10 @@ module writeback (
     output  logic               o_pc_alter,
     output  program_counter_t   o_pc,
     
+    // Log
+    input   [31:0] i_log_fd,
+    input   [31:0] i_commit_fd,
+    
     // Clock and Reset
     input   i_clk,
     input   i_rst_n
@@ -74,17 +78,22 @@ module writeback (
             o_pc <= next_pc;
             flushing <= next_flush;
             
-            $display("[WB ] Valid: %d, PC @ %h, Decode: %h, PC Alter: %d @ %h, WB Valid: %d @ %d = %h",
-                     i_instr.valid, i_instr.pc, i_instr.decode,
-                     next_flush_ic | next_pc_alter, next_pc,
-                     next_int_reg_wb.valid, next_int_reg_wb.idx, next_int_reg_wb.data);
+            if (i_log_fd != '0) begin
+                $fdisplay(i_log_fd, "[WB ] Valid: %d, PC @ %h, Decode: %h, PC Alter: %d @ %h, WB Valid: %d @ %d = %h",
+                          i_instr.valid, i_instr.pc, i_instr.decode,
+                          next_flush_ic | next_pc_alter, next_pc,
+                          next_int_reg_wb.valid, next_int_reg_wb.idx, next_int_reg_wb.data);
+            end
         end
     end
 
     /*
-     * Trace
+     * Commit trace
      */
-    int trace_fd;
+    //int commit_fd;
+    //initial begin
+    //    commit_fd = $fopen ("target/commit.txt", "w");
+    //end
     
     logic [31:0] cycle_count;
     logic [31:0] instr_count;
@@ -103,17 +112,13 @@ module writeback (
         end
     end
     
-    initial begin
-        trace_fd = $fopen ("target/commit.txt", "w");
-    end
-    
     always_ff @ (posedge i_clk) begin
-        if (~(~i_rst_n | flushing) & i_instr.valid) begin
+        if (i_commit_fd != '0 & ~(~i_rst_n | flushing) & i_instr.valid) begin
             instr_count <= instr_count + 32'b1;
-            $fdisplay(trace_fd, "[Cycle %5d] Instr #%5d | PC @ %h | Decode: %h | PC Alter: %d @ %h | WB Valid: %d @ %d = %h",
-                     cycle_count, instr_count, i_instr.pc, i_instr.decode,
-                     next_pc_alter, next_pc,
-                     next_int_reg_wb.valid, next_int_reg_wb.idx, next_int_reg_wb.data);
+            $fdisplay(i_commit_fd, "[Cycle %5d] Instr #%5d | PC @ %h | Decode: %h | PC Alter: %d @ %h | WB Valid: %d @ %d = %h",
+                      cycle_count, instr_count, i_instr.pc, i_instr.decode,
+                      next_pc_alter, next_pc,
+                      next_int_reg_wb.valid, next_int_reg_wb.idx, next_int_reg_wb.data);
         end
     end
 

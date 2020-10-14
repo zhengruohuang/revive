@@ -3,6 +3,7 @@
 
 
 #include <cstdint>
+#include <cstdio>
 #include "sim.hh"
 #include "decode.hh"
 
@@ -12,8 +13,13 @@ struct TraceMachineState
     uint32_t pc;
     uint32_t gpr[32];
     
-    int priv;
     CSRisa isa;
+    uint32_t vendorid;
+    uint32_t marchid;
+    uint32_t impid;
+    uint32_t hartid;
+    
+    int priv;
     CSRstatus status;
     CSRint inte;
     CSRint intp;
@@ -82,10 +88,7 @@ private:
         STORE_PAGE_FAULT,
     };
     
-    SimulatedMachine *mach;
-    PhysicalAddressSpace *as;
-    
-    std::ofstream out;
+    FILE *commitf;
     
     uint64_t numInstrs;
     uint32_t incomingInterrupts;

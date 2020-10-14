@@ -95,6 +95,15 @@ public:
         return record;
     }
     
+    ArgRecord *addInt(const char *name_search,
+        const char *name_short, const char *name_full, int def)
+    {
+        ArgRecord *record = add(name_search, name_short, name_full, ArgRecord::INT);
+        record->valueInt = def;
+        parse(record);
+        return record;
+    }
+    
     ArgRecord *addUInt64(const char *name_search,
         const char *name_short, const char *name_full, uint64_t def)
     {

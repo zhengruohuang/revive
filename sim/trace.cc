@@ -1,7 +1,8 @@
 #include <iostream>
-#include <fstream>
 #include <iomanip>
 #include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include "debug.hh"
 #include "sim.hh"
 #include "as.hh"
@@ -71,30 +72,23 @@ TraceSimDriver::translateVaddr(uint64_t vaddr, bool read, bool write, bool exec,
             return false;
         }
         
-        LOG(std::cout
-            << "[TRN] Base PPN @ " << std::hex << state.trans.ppn << std::dec
-            << ", idx: " << idx1
-            << ", table1 @ " << std::hex << table1_paddr << std::dec
-            << ", entry1_paddr @ " << std::hex << entry1_paddr << std::dec
-            << ", vaddr @ " << std::hex << vaddr << std::dec
-            << std::endl);
+        log_printf("[TRN] Base PPN @ %lx, idx: %d, table @ %lx, entry1_paddr @ %lx, vaddr @ %lx\n",
+                   state.trans.ppn, idx1, table1_paddr, entry1_paddr, vaddr);
         
         entry.value = as->read_atomic(entry1_paddr, 4);
         if (!entry.valid || (!entry.read && entry.write)) { // invalid
             fault = page_fault;
-            LOG(std::cout << "[TRN] invalid superpage" << std::endl);
+            log_printf("[TRN] invalid superpage\n");
             return false;
         } else if (entry.read || entry.exec) {
             if (entry.ppn & 0x3ff) { // misaligned superpage
                 fault = page_fault;
-                LOG(std::cout << "[TRN] misaligned superpage" << std::endl);
+                log_printf("[TRN] misaligned superpage\n");
                 return false;
             } else { // superpage
                 ppn = entry.ppn;
                 paddr = (ppn << 12) | (vaddr & 0x3fffffull);
-                LOG(std::cout
-                    << "[TRN] Super PPN @ " << std::hex << ppn << std::dec
-                    << std::endl);
+                log_printf("[TRN] Super PPN @ %lx\n", ppn);
             }
         }
         
@@ -116,9 +110,7 @@ TraceSimDriver::translateVaddr(uint64_t vaddr, bool read, bool write, bool exec,
             } else { // normal page
                 ppn = entry.ppn;
                 paddr = (ppn << 12) | (vaddr & 0xfffull);
-                LOG(std::cout
-                    << "[TRN] Final PPN @ " << std::hex << ppn << std::dec
-                    << std::endl);
+                log_printf("[TRN] Final PPN @ %lx\n", ppn);
             }
         }
         
@@ -141,10 +133,7 @@ TraceSimDriver::translateVaddr(uint64_t vaddr, bool read, bool write, bool exec,
     }
     
     if (need_trans) {
-        LOG(std::cout
-            << "[TRN] translated " << std::hex << vaddr << std::dec
-            << " -> " << std::hex << paddr << std::dec
-            << std::endl);
+        log_printf("[TRN] translated %lx -> %lx\n", (uint64_t)vaddr, paddr);
     }
     
     return checkPaddr(paddr, read, write, exec, fault, access_fault);
@@ -712,16 +701,16 @@ TraceSimDriver::trace(uint64_t pc, InstrEncode &encode,
                       bool alter_pc, uint32_t next_pc,
                       bool wb_valid, int wb_idx, uint32_t wb_data)
 {
-    return;
-    out << "[Cycle " << std::setw(5) << numInstrs << "] Instr # " << std::setw(5) << numInstrs
-        << " | PC @ " << std::hex << std::setw(8) << std::setfill('0') << pc << std::dec
-        << " | Encode: " << std::hex << std::setw(8) << std::setfill(' ') << encode.value << std::dec
-        << " | PC Alter: " << alter_pc
-            << " @ " << std::hex << std::setw(8) << std::setfill('0') << next_pc << std::dec
-        << " | WB Valid: " << wb_valid
-            << " @ " << std::setw(2) << std::setfill(' ') << wb_idx
-            << " = " << std::hex << std::setw(8) << std::setfill('0') << wb_data << std::dec
-        << std::setw(0) << std::setfill(' ') << std::endl;
+    if (!commitf) {
+        return;
+    }
+    
+    fprintf(commitf, "[Cycle %5lu] Instr # %5lu | PC @ %8lx | Encode: %8x"
+                     " | PC Alter: %d @ %8lx"
+                     " | WB Valid: %d @ %2u = %8lx\n",
+            numInstrs, numInstrs, pc, encode.value,
+            alter_pc, (uint64_t)next_pc,
+            wb_valid, wb_idx, (uint64_t)wb_data);
 }
 
 
@@ -749,12 +738,10 @@ TraceSimDriver::exceptEnter(uint32_t code, uint32_t tval)
     uint32_t delegate_m = state.csr[0x302];
     uint32_t delegate_s = state.csr[0x102];
     
-    LOG(std::cout
-        << "[TRA] code: " << code
-        << ", tval: " << std::hex << tval << std::dec
-        << ", del U: " << ((delegate_mask & delegate_m & delegate_s) && state.priv == PRIV_USER)
-        << ", del S: " << ((delegate_mask & delegate_m) && state.priv <= PRIV_SUPERVISOR)
-        << std::endl);
+    log_printf("[TRA] code: %u, tval: %lx, del U: %d, del S: %d\n",
+               code, (uint64_t)tval,
+               (delegate_mask & delegate_m & delegate_s) && state.priv == PRIV_USER,
+               (delegate_mask & delegate_m) && state.priv <= PRIV_SUPERVISOR);
     
     // delegate to U
     if ((delegate_mask & delegate_m & delegate_s) && state.priv == PRIV_USER) {
@@ -819,7 +806,7 @@ TraceSimDriver::trapReturn(int from_priv)
     
     state.pc &= ~(state.isa.c ? 0x1 : 0x3);
     
-    LOG(std::cout << "[RET] PC @ " << std::hex << state.pc << std::dec << std::endl);
+    log_printf("[RET] PC @ %lx\n", (uint64_t)state.pc);
 }
 
 
@@ -959,12 +946,16 @@ TraceSimDriver::interrupt()
     } while (0)
 
 #define EXECUTE_ALU(dst, src1, src2, op, w32) do { \
-        uint32_t value = op((src1), (src2)); \
+        uint32_t src1val = src1; \
+        uint32_t src2val = src2; \
+        uint32_t value = op(src1val, src2val); \
         writeGPR(dst, value); \
         uint32_t target = state.pc + instr_len; \
         trace(state.pc, encode, \
               false, target, \
               true, (dst), value); \
+        log_printf("[ALU] dst: %u, src1: %x, src2: %x, op: %s, val: %x\n", \
+                   dst, src1val, src2val, #op, value); \
         LOG(std::cout \
             << "[ALU] dst: " << (dst) \
             << ", src1: " << std::hex << (src1) << std::dec \
@@ -990,6 +981,9 @@ TraceSimDriver::interrupt()
         trace(state.pc, encode, \
               false, target, \
               true, (dst), high); \
+        log_printf("[MUH] dst: %u, src1: %s%x, src2: %s%x, val: %x, hi: %x\n", \
+                   dst, neg1 ? "-" : "+", usrc1, neg2 ? "-" : "+", usrc2, \
+                   value, high); \
         LOG(std::cout \
             << "[MUH] dst: " << (dst) \
             << ", src1: " << (neg1 ? "-" : "+") << std::hex << (src1) << std::dec \
@@ -1001,8 +995,12 @@ TraceSimDriver::interrupt()
     } while (0)
 
 #define EXECUTE_JAL(dst, base, offset) do { \
-        uint32_t target = ((base) + (offset)) & ~0x1; \
+        uint32_t baseval = base; \
+        uint32_t offsetval = offset; \
+        uint32_t target = (baseval + offsetval) & ~0x1; \
         uint32_t link = state.pc + instr_len; \
+        log_printf("[JAL] dst: %u, base: %x, offset: %x, target: %x, link: %x\n", \
+                   dst, baseval, offsetval, target, link); \
         LOG(std::cout \
             << "[JAL] dst: " << (dst) \
             << ", base: " << std::hex << (base) << std::dec \
@@ -1022,10 +1020,15 @@ TraceSimDriver::interrupt()
     } while (0)
 
 #define EXECUTE_BRANCH(src1, src2, op, offset) do { \
-        bool taken = op((src1), (src2)); \
-        uint32_t taken_pc = state.pc + offset; \
+        uint32_t src1val = src1; \
+        uint32_t src2val = src2; \
+        uint32_t offsetval = offset; \
+        bool taken = op(src1val, src2val); \
+        uint32_t taken_pc = state.pc + offsetval; \
         uint32_t ntaken_pc = state.pc + instr_len; \
         uint32_t target = taken ? taken_pc : ntaken_pc; \
+        log_printf("[BRA] taken: %d, src1: %x, src2: %x, op: %s, offset: %x, target: %x\n", \
+                   taken, src1val, src2val, #op, offsetval, target); \
         LOG(std::cout \
             << "[BRA] taken: " << taken \
             << ", src1: " << std::hex << (src1) << std::dec \
@@ -1045,10 +1048,14 @@ TraceSimDriver::interrupt()
     } while (0)
 
 #define EXECUTE_LD(dst, base, offset, sign, size) do { \
-        uint32_t addr = base + offset; \
+        uint32_t baseval = base; \
+        uint32_t offsetval = offset; \
+        uint32_t addr = baseval + offsetval; \
         uint32_t value = 0; \
         int fault = 0; \
         bool ok = executeG_LD(addr, sign, size, value, fault); \
+        log_printf("[LD ] dst: %u, base: %x, offset: %x, addr: %x, sign: %d, size: %d, val: %x, ok: %d\n", \
+                   dst, baseval, offsetval, addr, sign, size, value, ok); \
         LOG(std::cout \
             << "[LD ] dst: " << (dst) \
             << ", base: " << std::hex << (base) << std::dec \
@@ -1071,9 +1078,14 @@ TraceSimDriver::interrupt()
     } while (0)
 
 #define EXECUTE_ST(value, base, offset, size) do { \
-        uint32_t addr = base + offset; \
+        uint32_t stval = value; \
+        uint32_t baseval = base; \
+        uint32_t offsetval = offset; \
+        uint32_t addr = baseval + offsetval; \
         int fault = 0; \
-        bool ok = executeG_ST(addr, size, value, fault); \
+        bool ok = executeG_ST(addr, size, stval, fault); \
+        log_printf("[ST ] value: %x, base: %x, offset: %x, addr: %x, size: %d, ok: %d\n", \
+                   stval, baseval, offsetval, addr, size, ok); \
         LOG(std::cout \
             << "[ST ] value: " << std::hex << value << std::dec \
             << ", base: " << std::hex << (base) << std::dec \
@@ -1117,6 +1129,8 @@ TraceSimDriver::interrupt()
                 } \
             } \
         } \
+        log_printf("[AMO] dst: %u, addr: %x, src: %x, op: %s, op_ld: %s, op_st: %s, size: %d, ldval: %x, stval: %x, ok: %d\n", \
+                   dst, addrval, rs2val, op_name, #op_ld, #op_st, size, ldval, stval, ok); \
         LOG(std::cout \
             << "[AMO] dst: " << (dst) \
             << ", addr: " << std::hex << addrval << std::dec \
@@ -1145,6 +1159,7 @@ TraceSimDriver::interrupt()
         trace(state.pc, encode, \
               false, target, \
               false, 0, 0); \
+        log_printf("[FEN] flush i$: %d\n", flush_icache); \
         LOG(std::cout \
             << "[FEN] flush i$: " << (flush_icache) \
             << std::endl); \
@@ -1162,31 +1177,36 @@ TraceSimDriver::interrupt()
                 wr_ok = writeCSR(csr, stval); \
             } \
         } \
+        log_printf("[CSR] rd_ok: %d, wr_ok: %d, csr: %x\n", rd_ok, wr_ok, csr); \
         LOG(std::cout \
             << "rd_ok: " << rd_ok << ", wr_ok: " << wr_ok \
             << ", csr: " << std::hex << csr << std::dec \
             << std::endl); \
         if (!rd_ok || !wr_ok) { \
             EXECUTE_UNKNOWN(encode); \
+        } else {\
+            uint32_t target = state.pc + instr_len; \
+            trace(state.pc, encode, \
+                  false, target, \
+                  true, (dst), ldval); \
+            log_printf("[CSR] dst: %u, src: %x, csr: %x, op: %s, ldval: %x, stval: %x\n", \
+                       dst, srcval, csr, #op, ldval, stval); \
+            LOG(std::cout \
+                << "[CSR] dst: " << (dst) \
+                << ", src: " << std::hex << (srcval) << std::dec \
+                << ", csr: " << std::hex << (csr) << std::dec \
+                << ", op: " << #op \
+                << ", ldval: " << std::hex << ldval << std::dec \
+                << ", stval: " << std::hex << stval << std::dec \
+                << std::endl); \
+            state.pc = target;  \
         } \
-        uint32_t target = state.pc + instr_len; \
-        trace(state.pc, encode, \
-              false, target, \
-              true, (dst), ldval); \
-        LOG(std::cout \
-            << "[CSR] dst: " << (dst) \
-            << ", src: " << std::hex << (srcval) << std::dec \
-            << ", csr: " << std::hex << (csr) << std::dec \
-            << ", op: " << #op \
-            << ", ldval: " << std::hex << ldval << std::dec \
-            << ", stval: " << std::hex << stval << std::dec \
-            << std::endl); \
-        state.pc = target;  \
     } while (0)
 
 #define EXECUTE_ECALL() do { \
         int code = ECALL_FROM_U; \
         code += state.priv; \
+        log_printf("[ECL] code: %d\n", code); \
         LOG(std::cout \
             << "[ECL] code: " << code \
             << std::endl); \
@@ -1195,6 +1215,7 @@ TraceSimDriver::interrupt()
 
 #define EXECUTE_EBREAK() do { \
         int code = BREAKPOINT; \
+        log_printf("[EBK] code: %d\n", code); \
         LOG(std::cout \
             << "[EBK] code: " << code \
             << std::endl); \
@@ -1208,12 +1229,22 @@ TraceSimDriver::interrupt()
             if ((from) == PRIV_SUPERVISOR && state.status.tsr) { \
                 EXECUTE_UNKNOWN(encode); \
             } else { \
+                log_printf("[RET] priv: %d\n", from); \
                 LOG(std::cout \
                     << "[RET] priv: " << (from) \
                     << std::endl); \
                 trapReturn(from); \
             } \
         } \
+    } while (0)
+
+#define EXECUTE_WFI() do { \
+        uint32_t target = state.pc + instr_len; \
+        trace(state.pc, encode, \
+              false, target, \
+              false, 0, 0); \
+        log_printf("[WFI] Have a rest\n"); \
+        state.pc = target;  \
     } while (0)
 
 inline bool
@@ -1243,12 +1274,8 @@ TraceSimDriver::executeG_LD(uint32_t addr, bool sign, int size, uint32_t &value,
         value = ld32;
     }
     
-    LOG(std::cout
-        << "[SIM] Mem LD @ " << std::hex << addr << std::dec
-        << ", Trans @ " << std::hex << paddr << std::dec
-        << ", Size: " << size
-        << ", Data: " << std::hex << value << std::dec
-        << std::endl);
+    log_printf("[MEM] Mem LD @ %lx, Trans @ %lx, Size: %d, Data: %lx\n",
+               (uint64_t)addr, paddr, size, (uint64_t)value);
     
     return true;
 }
@@ -1277,12 +1304,8 @@ TraceSimDriver::executeG_ST(uint32_t addr, int size, uint32_t value, int &fault)
         as->write_atomic(paddr, 4, (uint32_t)value);
     }
     
-    LOG(std::cout
-        << "[SIM] Mem ST @ " << std::hex << addr << std::dec
-        << ", Trans @ " << std::hex << paddr << std::dec
-        << ", Size: " << size
-        << ", Data: " << std::hex << value << std::dec
-        << std::endl);
+    log_printf("[MEM] Mem ST @ %lx, Trans @ %lx, Size: %d, Data: %lx\n",
+               (uint64_t)addr, paddr, size, (uint64_t)value);
     
     return true;
 }
@@ -1534,7 +1557,7 @@ TraceSimDriver::executeG(InstrEncode &encode)
             if (encode.func7 == 0b0001001) { // SFENCE.VMA
                 EXECUTE_FENCE(false);
             } else if (encode.rs2 == 0b00101 && encode.func7 == 0b0001000) { // WFI
-                EXECUTE_FENCE(false);
+                EXECUTE_WFI();
             } else if (encode.rs2 == 0b00010) { // URET/SRET/MRET
                 switch (encode.func7) {
                 case 0b0000000: // URET
@@ -1778,18 +1801,29 @@ TraceSimDriver::fetch(uint32_t &instr, int &size, const bool double_fault)
  * The simulation
  */
 TraceSimDriver::TraceSimDriver(const char *name, ArgParser *cmd,
-                           SimulatedMachine *mach)
-    : SimDriver(name, cmd),
-      mach(mach), as(mach->getPhysicalAddressSpace()),
+                               SimulatedMachine *mach)
+    : SimDriver(name, cmd, mach), commitf(nullptr),
       numInstrs(0), incomingInterrupts(0)
 {
+    cmd->addString("commit_file", "-c", "--commit-file", "target/commit.txt");
 }
 
 int
 TraceSimDriver::startup()
 {
-    if (!openOutputFile("target/commit.txt", out)) {
-        return -1;
+    const char *commit_filename = cmd->get("commit_file")->valueString;
+    if (strcmp(commit_filename, "none")) {
+        if (!strcmp(commit_filename, "stdout")) {
+            commitf = stdout;
+        } else if (!strcmp(commit_filename, "stderr")) {
+            commitf = stderr;
+        } else {
+            commitf = openOutputFile(commit_filename);
+        }
+        
+        if (!commitf) {
+            return -1;
+        }
     }
     
     return 0;
@@ -1798,7 +1832,10 @@ TraceSimDriver::startup()
 int
 TraceSimDriver::cleanup()
 {
-    out.close();
+    if (commitf) {
+        fflush(commitf);
+        fclose(commitf);
+    }
     return 0;
 }
 
@@ -1844,12 +1881,8 @@ TraceSimDriver::cycle(uint64_t num_cycles)
     uint32_t instr = 0;
     fetch(instr, instr_len);
     
-    LOG(std::cout
-        << "[SIM] Cycle @ " << num_cycles
-        << ", PC: " << std::hex << state.pc << std::dec
-        << ", Instr: " << std::hex << instr << std::dec
-        << ", (" << instr_len << "B)"
-        << std::endl);
+    log_printf("[SIM] Cycle @ %lu, PC @ %lx, Instr: %x (%dB)\n",
+               num_cycles, (uint64_t)state.pc, instr, instr_len);
     
 //    if (state.pc == 0xc00480d4) {
 //        std::cerr << "sys_ni_syscall @ c00480d4"

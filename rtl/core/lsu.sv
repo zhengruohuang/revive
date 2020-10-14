@@ -15,6 +15,9 @@ module ldst_unit (
     output  issued_instr_t      o_instr,
     output  reg_data_t          o_data,
     
+    // Log
+    input   [31:0] i_log_fd,
+    
     // Clock and Reset
     input   i_clk,
     input   i_rst_n
@@ -51,8 +54,10 @@ module ldst_unit (
                 in_mispred <= 1'b1;
             end
             
-            $display("[LSU] Valid: %d, PC @ %h, Decode: %h, Data: %h, LD Data: %h, RS2: %h",
-                     i_instr.valid, i_instr.pc, i_instr.decode, (is_mem_op | is_amo_op) ? ld_data : i_data, ld_data, i_data_rs2);
+            if (i_log_fd != '0) begin
+                $fdisplay(i_log_fd, "[LSU] Valid: %d, PC @ %h, Decode: %h, Data: %h, LD Data: %h, RS2: %h",
+                          i_instr.valid, i_instr.pc, i_instr.decode, (is_mem_op | is_amo_op) ? ld_data : i_data, ld_data, i_data_rs2);
+            end
         end
     end
 

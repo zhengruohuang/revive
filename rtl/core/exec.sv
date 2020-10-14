@@ -22,6 +22,9 @@ module execute (
     output  reg_data_t          o_data,
     output  reg_data_t          o_data_rs2,
     
+    // Log
+    input   [31:0] i_log_fd,
+    
     // Clock and Reset
     input   i_clk,
     input   i_rst_n
@@ -49,6 +52,7 @@ module execute (
     wire    reg_data_t  alu_data;
     
     arithmetic_unit alu (
+        .i_log_fd       (i_log_fd),
         .i_e        (alu_e),
         .i_op       (i_instr.decode.op.alu),
         .i_w32      (i_instr.decode.op_size.w32),
@@ -65,6 +69,7 @@ module execute (
     wire    reg_data_t  agu_data;
     
     addr_gen_unit agu (
+        .i_log_fd       (i_log_fd),
         .i_e        (agu_e),
         .i_src1     (src1),
         .i_offset   (imm),
@@ -81,6 +86,7 @@ module execute (
     wire                bru_mispred = bru_taken; // Branches are predicted always not taken
     
     branch_unit bru (
+        .i_log_fd       (i_log_fd),
         .i_e            (bru_e),
         .i_op           (i_instr.decode.op.bru),
         .i_invert       (i_instr.decode.op_size.invert),
@@ -111,6 +117,7 @@ module execute (
         .i_src2         (src2),
         .o_valid        (mdu_valid),
         .o_dest         (mdu_data),
+        .i_log_fd       (i_log_fd),
         .i_clk          (i_clk),
         .i_rst_n        (i_rst_n)
     );
@@ -160,8 +167,10 @@ module execute (
             o_data <= next_data;
             o_data_rs2 <= i_data_rs2;
             
-            $display("[EXE] Valid: %d, PC @ %h, Decode: %h, RS1: %h, RS2: %h, IMM: %h, RD: %h, Mispred: %d",
-                     i_instr.valid, i_instr.pc, i_instr.decode, src1, src2, imm, next_data, bru_mispred);
+            if (i_log_fd != '0) begin
+                $fdisplay(i_log_fd, "[EXE] Valid: %d, PC @ %h, Decode: %h, RS1: %h, RS2: %h, IMM: %h, RD: %h, Mispred: %d",
+                          i_instr.valid, i_instr.pc, i_instr.decode, src1, src2, imm, next_data, bru_mispred);
+            end
         end
     end
 
