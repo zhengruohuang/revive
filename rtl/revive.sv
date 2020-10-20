@@ -10,6 +10,7 @@
 `include "core/reg_fetch.sv"
 `include "core/exec.sv"
 `include "core/lsu.sv"
+`include "core/csr.sv"
 `include "core/writeback.sv"
 
 module revive (
@@ -40,14 +41,16 @@ module revive (
     //--------------------------------------------------------------------------
     // Program State
     //--------------------------------------------------------------------------
-    wire                        to_ps_alter;
-    wire    program_state_t     to_ps_ps;
+    wire    [1:0]               to_ps_priv;
+    wire                        to_ps_isa_c;
+    wire    reg_data_t          to_ps_satp;
     
     wire    program_state_t     from_ps_ps;
     
     program_state ps (
-        .i_alter        (to_ps_alter),
-        .i_ps           (to_ps_ps),
+        .i_priv         (to_ps_priv),
+        .i_isa_c        (to_ps_isa_c),
+        .i_satp         (to_ps_satp),
         .o_ps           (from_ps_ps),
         .i_log_fd       (i_log_fd),
         .i_clk          (i_clk),
@@ -219,6 +222,9 @@ module revive (
         .o_instr        (from_ex_instr),
         .o_data         (from_ex_data),
         .o_data_rs2     (from_ex_data_rs2),
+        .i_int_ext      (1'b0),
+        .i_int_timer    (1'b0),
+        .i_int_soft     (1'b0),
         .i_log_fd       (i_log_fd),
         .i_clk          (i_clk),
         .i_rst_n        (i_rst_n)
@@ -253,17 +259,48 @@ module revive (
     );
 
     //--------------------------------------------------------------------------
+    // Control and Status Registers
+    //--------------------------------------------------------------------------
+    wire                        to_cr_flush;
+    
+    wire    issued_instr_t      to_cr_instr = from_ls_instr;
+    wire    reg_data_t          to_cr_data = from_ls_data;
+    
+    wire    issued_instr_t      from_cr_instr;
+    wire    reg_data_t          from_cr_data;
+    
+    wire    [1:0]               from_cr_priv;
+    wire                        from_cr_isa_c;
+    wire    reg_data_t          from_cr_satp;
+    
+    ctrl_status_reg csr (
+        .i_flush        (to_cr_flush),
+        .i_instr        (to_cr_instr),
+        .i_data         (to_cr_data),
+        .o_instr        (from_cr_instr),
+        .o_data         (from_cr_data),
+        .i_int_ext      (1'b0),
+        .i_int_timer    (1'b0),
+        .i_int_soft     (1'b0),
+        .i_mtime        (64'b0),
+        .o_priv         (from_cr_priv),
+        .o_isa_c        (from_cr_isa_c),
+        .o_satp         (from_cr_satp),
+        .i_log_fd       (i_log_fd),
+        .i_clk          (i_clk),
+        .i_rst_n        (i_rst_n)
+    );
+
+    //--------------------------------------------------------------------------
     // Writeback
     //--------------------------------------------------------------------------
     wire    program_state_t     to_wb_ps = from_ps_ps;
     
-    wire    issued_instr_t      to_wb_instr = from_ls_instr;
-    wire    reg_data_t          to_wb_data = from_ls_data;
+    wire    issued_instr_t      to_wb_instr = from_cr_instr;
+    wire    reg_data_t          to_wb_data = from_cr_data;
     
     wire    int_arch_reg_wb_t   from_wb_int_reg_wb;
     wire                        from_wb_flush;
-    wire                        from_wb_ps_alter;
-    wire    program_state_t     from_wb_ps;
     wire                        from_wb_pc_alter;
     wire    program_counter_t   from_wb_pc;
     
@@ -273,8 +310,6 @@ module revive (
         .i_data         (to_wb_data),
         .o_int_reg_wb   (from_wb_int_reg_wb),
         .o_flush        (from_wb_flush),
-        .o_ps_alter     (from_wb_ps_alter),
-        .o_ps           (from_wb_ps),
         .o_pc_alter     (from_wb_pc_alter),
         .o_pc           (from_wb_pc),
         .i_log_fd       (i_log_fd),
@@ -286,8 +321,9 @@ module revive (
     //--------------------------------------------------------------------------
     // Pipeline Control
     //--------------------------------------------------------------------------
-    assign  to_ps_alter         = from_wb_ps_alter;
-    assign  to_ps_ps            = from_wb_ps;
+    assign  to_ps_priv          = from_cr_priv;
+    assign  to_ps_isa_c         = from_cr_isa_c;
+    assign  to_ps_satp          = from_cr_satp;
     
     assign  to_pc_stall         = from_if_stall;
     assign  to_pc_flush         = from_wb_flush;
@@ -315,6 +351,8 @@ module revive (
     assign  to_ex_flush         = from_wb_flush;
     
     assign  to_ls_flush         = from_wb_flush;
+    
+    assign  to_cr_flush         = from_wb_flush;
 
 endmodule
 

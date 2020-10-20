@@ -336,9 +336,7 @@ compliance_rv32i:
 	@$(call run_compliance_tests,RV32I,rv32i,$(COMPLIANCE_RV32I))
 
 compliance_rv32i_priv:
-ifdef TRACE
 	@$(call run_compliance_tests,RV32I_PRIV,rv32i,$(COMPLIANCE_RV32I_PRIV))
-endif
 
 compliance_rv32im:
 	@$(call run_compliance_tests,RV32IM,rv32im,$(COMPLIANCE_RV32IM))
@@ -350,9 +348,7 @@ compliance_rv32Zifencei:
 	@$(call run_compliance_tests,RV32Zifencei,rv32Zifencei,$(COMPLIANCE_RV32ZIFENCEI))
 
 compliance_rv32Zicsr:
-ifdef TRACE
 	@$(call run_compliance_tests,RV32Zicsr,rv32Zicsr,$(COMPLIANCE_RV32ZICSR))
-endif
 
 build_compliance: mkdir_compliance $(COMPLIANCES)
 

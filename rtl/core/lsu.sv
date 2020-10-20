@@ -23,15 +23,16 @@ module ldst_unit (
     input   i_rst_n
 );
 
-            logic               in_mispred;
+            logic               in_except;
 
-    wire                        is_mem_op/*verilator public*/   = ~in_mispred & i_instr.valid & i_instr.decode.unit == UNIT_MEM;
-    wire                        is_amo_op/*verilator public*/   = ~in_mispred & i_instr.valid & i_instr.decode.unit == UNIT_AMO;
+    wire                        is_mem_op/*verilator public*/   = ~in_except & i_instr.valid & i_instr.decode.unit == UNIT_MEM;
+    wire                        is_amo_op/*verilator public*/   = ~in_except & i_instr.valid & i_instr.decode.unit == UNIT_AMO;
     wire    reg_data_t          addr/*verilator public*/        = i_data;
     wire    reg_data_t          st_data/*verilator public*/     = i_data_rs2;
     wire    decode_op_t         op/*verilator public*/          = i_instr.decode.op;
     wire    decode_op_size_t    op_size/*verilator public*/     = i_instr.decode.op_size;
     wire                        op_w32/*verilator public*/      = i_instr.decode.op_size.w32;
+    wire                        op_ignore/*verilator public*/   = i_instr.except.valid;
 
             reg_data_t          ld_data/*verilator public*/;
 
@@ -44,14 +45,14 @@ module ldst_unit (
         if (~i_rst_n | i_flush) begin
             o_instr <= '0;
             o_data <= '0;
-            in_mispred <= '0;
+            in_except <= '0;
         end
         
         else begin
             o_instr <= i_instr;
             o_data <= (is_mem_op | is_amo_op) ? ld_data : i_data;
-            if (i_instr.valid & i_instr.except.valid & i_instr.except.code == EXCEPT_MISPRED) begin
-                in_mispred <= 1'b1;
+            if (i_instr.valid & i_instr.except.valid) begin
+                in_except <= 1'b1;
             end
             
             if (i_log_fd != '0) begin

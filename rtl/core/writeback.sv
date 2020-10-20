@@ -14,10 +14,6 @@ module writeback (
     // To all
     output  logic               o_flush,
     
-    // To PS
-    output  logic               o_ps_alter,
-    output  program_state_t     o_ps,
-    
     // To PC
     output  logic               o_pc_alter,
     output  program_counter_t   o_pc,
@@ -39,20 +35,18 @@ module writeback (
     /*
      * Next
      */
-    wire                        next_flush_ic   = ~flushing & i_instr.valid & i_instr.except.valid & i_instr.except.code == EXCEPT_FLUSH;
-    wire                        next_pc_alter   = ~flushing & i_instr.valid & i_instr.except.valid & i_instr.except.code == EXCEPT_MISPRED;
-    wire    program_counter_t   next_pc         = next_flush_ic ? i_instr.pc + 32'h4 :
-                                                  next_pc_alter ? i_data : '0;
+    wire    program_counter_t   next_seq_pc     = i_instr.pc + (i_instr.decode.half ? 32'h2 : 32'h4);
+    wire                        next_except     = ~flushing & i_instr.valid & i_instr.except.valid;
+    wire                        next_pc_in_data = ~flushing & i_instr.valid & i_instr.except.valid & i_instr.except.code == EXCEPT_MISPRED;
     
-    wire                        next_ps_alter   = '0;
-    wire    program_state_t     next_ps         = '0;
+    wire                        next_pc_alter   = next_except;
+    wire    program_counter_t   next_pc         = next_pc_in_data ? i_data : next_seq_pc;
     
-    wire                        next_flush              = ~flushing & (next_flush_ic | next_pc_alter | next_ps_alter |
-                                                            (i_instr.valid & i_instr.decode.rd_sel == RD_FLUSH));
+    wire                        next_flush              = ~flushing & next_pc_alter;
     wire                        next_int_reg_wb_valid   = ~flushing & i_instr.valid & (i_instr.decode.rd.idx != '0) &
-                                                        (i_instr.decode.rd_sel == RD_REG | i_instr.decode.rd_sel == RD_REG_AND_PC);
+                                                          (i_instr.decode.rd_sel == RD_REG | i_instr.decode.rd_sel == RD_REG_AND_PC);
     wire    int_arch_reg_wb_t   next_int_reg_wb =
-                                    compose_int_arch_reg_wb(i_instr.decode.rd_sel == RD_REG_AND_PC ? i_instr.pc + (i_instr.decode.half ? 32'h2 : 32'h4) : i_data,
+                                    compose_int_arch_reg_wb(i_instr.decode.rd_sel == RD_REG_AND_PC ? next_seq_pc : i_data,
                                                             i_instr.decode.rd.idx, next_int_reg_wb_valid);
 
     /*
@@ -62,8 +56,6 @@ module writeback (
         if (~i_rst_n | flushing) begin
             o_int_reg_wb <= '0;
             o_flush <= '0;
-            o_ps_alter <= '0;
-            o_ps <= '0;
             o_pc_alter <= '0;
             o_pc <= '0;
             flushing <= 1'b0;
@@ -72,16 +64,14 @@ module writeback (
         else begin
             o_int_reg_wb <= next_int_reg_wb;
             o_flush <= next_flush;
-            o_ps_alter <= next_ps_alter;
-            o_ps <= next_ps;
-            o_pc_alter <= next_flush_ic | next_pc_alter;
+            o_pc_alter <= next_pc_alter;
             o_pc <= next_pc;
             flushing <= next_flush;
             
             if (i_log_fd != '0) begin
                 $fdisplay(i_log_fd, "[WB ] Valid: %d, PC @ %h, Decode: %h, PC Alter: %d @ %h, WB Valid: %d @ %d = %h",
                           i_instr.valid, i_instr.pc, i_instr.decode,
-                          next_flush_ic | next_pc_alter, next_pc,
+                          next_pc_alter, next_pc,
                           next_int_reg_wb.valid, next_int_reg_wb.idx, next_int_reg_wb.data);
             end
         end
@@ -95,14 +85,14 @@ module writeback (
     //    commit_fd = $fopen ("target/commit.txt", "w");
     //end
     
-    logic [31:0] cycle_count;
-    logic [31:0] instr_count;
+    logic [63:0] cycle_count;
+    logic [63:0] instr_count;
     
     always_ff @ (posedge i_clk) begin
         if (~i_rst_n) begin
             cycle_count <= '0;
         end else begin
-            cycle_count <= cycle_count + 32'b1;
+            cycle_count <= cycle_count + 64'b1;
         end
     end
     
@@ -114,10 +104,11 @@ module writeback (
     
     always_ff @ (posedge i_clk) begin
         if (i_commit_fd != '0 & ~(~i_rst_n | flushing) & i_instr.valid) begin
-            instr_count <= instr_count + 32'b1;
+            instr_count <= instr_count + 64'b1;
+            
             $fdisplay(i_commit_fd, "[Cycle %5d] Instr #%5d | PC @ %h | Decode: %h | PC Alter: %d @ %h | WB Valid: %d @ %d = %h",
                       cycle_count, instr_count, i_instr.pc, i_instr.decode,
-                      next_pc_alter, next_pc,
+                      next_except, next_pc,
                       next_int_reg_wb.valid, next_int_reg_wb.idx, next_int_reg_wb.data);
         end
     end

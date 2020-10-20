@@ -783,21 +783,21 @@ TraceSimDriver::exceptEnter(uint32_t code, uint32_t tval)
 inline void
 TraceSimDriver::trapReturn(int from_priv)
 {
-    // return to U
+    // return from U
     if (from_priv == PRIV_USER) {
         state.status.uie = state.status.upie;
         state.pc = state.csr[0x041];
         state.priv = PRIV_USER; // state.status.upp;
     }
     
-    // delegate to S
+    // return from S
     else if (from_priv == PRIV_SUPERVISOR) {
         state.status.sie = state.status.spie;
         state.pc = state.csr[0x141];
         state.priv = state.status.spp;
     }
     
-    // return to M
+    // return from M
     else {
         state.status.mie = state.status.mpie;
         state.pc = state.csr[0x341];
@@ -1008,7 +1008,7 @@ TraceSimDriver::interrupt()
             << ", target: " << std::hex << (target) << std::dec \
             << ", link: " << std::hex << (link) << std::dec \
             << std::endl); \
-        if (!state.isa.c && target & 0x3) { \
+        if (!state.isa.c && (target & 0x3)) { \
             exceptEnter(INSTR_ADDR_MISALIGN, target); \
         } else { \
             trace(state.pc, encode, \
@@ -1037,7 +1037,7 @@ TraceSimDriver::interrupt()
             << ", offset: " << std::hex << (offset) << std::dec \
             << ", target: " << std::hex << (target) << std::dec \
             << std::endl); \
-        if (!state.isa.c && target & 0x3) { \
+        if (!state.isa.c && (target & 0x3)) { \
             exceptEnter(INSTR_ADDR_MISALIGN, target); \
         } else { \
             trace(state.pc, encode, \
@@ -1813,14 +1813,7 @@ TraceSimDriver::startup()
 {
     const char *commit_filename = cmd->get("commit_file")->valueString;
     if (strcmp(commit_filename, "none")) {
-        if (!strcmp(commit_filename, "stdout")) {
-            commitf = stdout;
-        } else if (!strcmp(commit_filename, "stderr")) {
-            commitf = stderr;
-        } else {
-            commitf = openOutputFile(commit_filename);
-        }
-        
+        commitf = openOutputFile(commit_filename);
         if (!commitf) {
             return -1;
         }
@@ -1852,9 +1845,11 @@ TraceSimDriver::reset(uint64_t entry)
     
     state.priv = PRIV_MACHINE;
     state.isa.value = 0;
+    state.isa.a = 1; // atomic
     state.isa.c = 1; // compressed
     state.isa.e = 1; // embedded
     state.isa.g = 1; // general
+    state.isa.i = 1; // rv32i base
     state.isa.n = 1; // user-level interrupts
     state.isa.m = 1; // mul/div
     state.isa.s = 1; // supervisor

@@ -44,7 +44,7 @@ typedef logic [`ITLB_VPN_TAG_WIDTH - 1:0] itlb_tag_t;
 
 typedef struct packed {
     asid_t          asid;
-    itlb_tag_t      tag;
+    itlb_tag_t      vpn;
     logic           valid;
 } itlb_tag_entry_t;
 

@@ -2,8 +2,9 @@
 `include "include/ps.svh"
 
 module program_state (
-    input                       i_alter,
-    input   program_state_t     i_ps,
+    input   [1:0]               i_priv,
+    input                       i_isa_c,
+    input   reg_data_t          i_satp,
     
     output  program_state_t     o_ps,
     
@@ -14,18 +15,7 @@ module program_state (
     input   i_rst_n
 );
 
-    program_state_t ps;
-    assign          o_ps = ps;
-
-    always_ff @ (posedge i_clk) begin
-        if (~i_rst_n) begin
-            ps <= '0;
-        end
-        
-        else if (i_alter) begin
-            ps <= i_ps;
-        end
-    end
+    assign  o_ps = { i_priv, i_isa_c, i_satp[31], i_satp[30:22] };
 
 endmodule
 

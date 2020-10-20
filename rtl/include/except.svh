@@ -6,8 +6,6 @@
  * Exception
  */
 typedef enum logic [4:0] {
-    EXCEPT_NONE,
-    
     EXCEPT_PC_MISALIGN,
     EXCEPT_PC_ACCESS_FAULT,
     EXCEPT_UNKNOW_INSTR,
@@ -25,21 +23,35 @@ typedef enum logic [4:0] {
     EXCEPT_RESERVED2,
     EXCEPT_STORE_PAGE_FAULT,
     
+    NUM_STD_EXCEPTS,
+    
+    EXCEPT_NONE,
     EXCEPT_MISPRED,
     EXCEPT_FLUSH,
+    EXCEPT_INTERRUPT,
+    EXCEPT_TRAP,
+    EXCEPT_SYS,
     
     NUM_EXCEPTS
 } except_code_t;
 
 typedef struct packed {
     except_code_t   code;
+    logic [31:0]    tval;
     logic           valid;
 } except_t;
 
-`define EXCEPT_NONE             { EXCEPT_NONE, 1'b0 }
-`define EXCEPT_INVALID_INSTR    { EXCEPT_UNKNOW_INSTR, 1'b1 }
-`define EXCEPT_MISPRED          { EXCEPT_MISPRED, 1'b1 }
-`define EXCEPT_FLUSH            { EXCEPT_FLUSH, 1'b1 }
+`define EXCEPT_PC_MISALIGN(tval)    { EXCEPT_PC_MISALIGN, tval, 1'b1 }
+`define EXCEPT_INVALID_INSTR(tval)  { EXCEPT_UNKNOW_INSTR, tval, 1'b1 }
+`define EXCEPT_LOAD_MISALIGN(tval)  { EXCEPT_LOAD_MISALIGN, tval, 1'b1 }
+`define EXCEPT_STORE_MISALIGN(tval) { EXCEPT_STORE_MISALIGN, tval, 1'b1 }
+
+`define EXCEPT_NONE             { EXCEPT_NONE, 32'b0, 1'b0 }
+`define EXCEPT_MISPRED          { EXCEPT_MISPRED, 32'b0, 1'b1 }
+`define EXCEPT_FLUSH            { EXCEPT_FLUSH, 32'b0, 1'b1 }
+`define EXCEPT_INTERRUPT        { EXCEPT_INTERRUPT, 32'b0, 1'b1 }
+`define EXCEPT_TRAP             { EXCEPT_TRAP, 32'b0, 1'b1 }
+`define EXCEPT_SYS              { EXCEPT_SYS, 32'b0, 1'b1 }
 
 `endif
 

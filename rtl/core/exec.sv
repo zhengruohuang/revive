@@ -5,6 +5,7 @@
 `include "core/fu/bru.sv"
 `include "core/fu/agu.sv"
 `include "core/fu/mdu.sv"
+`include "core/fu/sys.sv"
 
 module execute (
     input                       i_flush,
@@ -21,6 +22,11 @@ module execute (
     output  issued_instr_t      o_instr,
     output  reg_data_t          o_data,
     output  reg_data_t          o_data_rs2,
+    
+    // Interrupt
+    input                       i_int_ext,
+    input                       i_int_timer,
+    input                       i_int_soft,
     
     // Log
     input   [31:0] i_log_fd,
@@ -40,8 +46,8 @@ module execute (
                               i_instr.decode.rs1_sel == RS_ZIMM ? { 27'b0, i_instr.decode.rs1.idx } : '0;
     wire    reg_data_t src2 = i_instr.decode.rs2_sel == RS_REG ? i_data_rs2 :
                               i_instr.decode.rs2_sel == RS_IMM ? imm :
-                              i_instr.decode.rs1_sel == RS_PC ? i_instr.pc :
-                              i_instr.decode.rs1_sel == RS_ZIMM ? { 27'b0, i_instr.decode.rs2.idx } : '0;
+                              i_instr.decode.rs2_sel == RS_PC ? i_instr.pc :
+                              i_instr.decode.rs2_sel == RS_ZIMM ? { 27'b0, i_instr.decode.rs2.idx } : '0;
     
     /*
      * ALU
@@ -52,7 +58,7 @@ module execute (
     wire    reg_data_t  alu_data;
     
     arithmetic_unit alu (
-        .i_log_fd       (i_log_fd),
+        .i_log_fd   (i_log_fd),
         .i_e        (alu_e),
         .i_op       (i_instr.decode.op.alu),
         .i_w32      (i_instr.decode.op_size.w32),
@@ -67,13 +73,19 @@ module execute (
     wire                agu_e = ~i_stall & i_instr.valid &
                                 (i_instr.decode.unit == UNIT_MEM | i_instr.decode.unit == UNIT_AMO);
     wire    reg_data_t  agu_data;
+    wire                agu_ld;
+    wire                agu_misalign;
     
     addr_gen_unit agu (
-        .i_log_fd       (i_log_fd),
+        .i_log_fd   (i_log_fd),
         .i_e        (agu_e),
+        .i_op       (i_instr.decode.op.mem),
         .i_src1     (src1),
         .i_offset   (imm),
-        .o_dest     (agu_data)
+        .i_size     (i_instr.decode.op_size),
+        .o_dest     (agu_data),
+        .o_ld       (agu_ld),
+        .o_misalign (agu_misalign)
     );
     
     /*
@@ -84,19 +96,22 @@ module execute (
     wire    reg_data_t  bru_data;
     wire                bru_taken;
     wire                bru_mispred = bru_taken; // Branches are predicted always not taken
+    wire                bru_misalign;
     
     branch_unit bru (
         .i_log_fd       (i_log_fd),
         .i_e            (bru_e),
         .i_op           (i_instr.decode.op.bru),
         .i_invert       (i_instr.decode.op_size.invert),
+        .i_isa_c        (i_ps.isa_c),
         .i_pc           (i_instr.pc),
         .i_compressed   (i_instr.decode.half),
         .i_src1         (src1),
         .i_src2         (src2),
         .i_offset       (imm),
         .o_dest_pc      (bru_data),
-        .o_taken        (bru_taken)
+        .o_taken        (bru_taken),
+        .o_misalign     (bru_misalign)
     );
     
     /*
@@ -130,23 +145,91 @@ module execute (
                                 i_instr.decode.op == OP_ALU_FENCE;
     
     /*
+     * SYS
+     */
+    wire                sys_e = ~i_stall & i_instr.valid &
+                                i_instr.decode.unit == UNIT_SYS;
+    wire                rs1_is_zero = i_instr.decode.rs1_sel == RS_REG ? i_instr.decode.rs1.idx == '0 :
+                                      i_instr.decode.rs1_sel == RS_ZIMM ? i_instr.decode.rs1.idx == '0 : 1'b0;
+    wire    reg_data_t  sys_data = src1;
+    wire                bad_csr;
+    wire                trap;
+    
+    sys_unit su (
+        .i_log_fd       (i_log_fd),
+        .i_e            (sys_e),
+        .i_op           (i_instr.decode.op.sys),
+        .i_ps           (i_ps),
+        .i_csr          (imm[11:0]),
+        .i_rs1_is_zero  (rs1_is_zero),
+        .o_bad_csr      (bad_csr),
+        .o_trap         (trap)
+    );
+    
+    /*
+     * Interrupt
+     */
+    wire                int_e = ~i_stall & (i_int_ext | i_int_timer | i_int_soft);
+    
+    /*
      * Next
      */
     wire    reg_data_t      next_data = alu_e ? alu_data :
                                         agu_e ? agu_data :
                                         bru_e ? bru_data :
-                                        mdu_e ? mdu_data : '0;
+                                        mdu_e ? mdu_data :
+                                        sys_e ? sys_data :
+                                        '0;
             issued_instr_t  next_instr;
     
     always_comb begin
-        if (bru_e & bru_mispred) begin
+        if (int_e) begin
+            next_instr = compose_issued_instr(i_instr.pc, i_instr.decode, `EXCEPT_INTERRUPT, 1'b1);
+        end
+        
+        else if (bru_e & bru_misalign) begin
+            next_instr = compose_issued_instr(i_instr.pc, i_instr.decode, `EXCEPT_PC_MISALIGN(bru_data), 1'b1);
+        end else if (bru_e & bru_mispred) begin
             next_instr = compose_issued_instr(i_instr.pc, i_instr.decode, `EXCEPT_MISPRED, 1'b1);
-        end else if (flu_e) begin
+        end
+        
+        else if (flu_e) begin
             next_instr = compose_issued_instr(i_instr.pc, i_instr.decode, `EXCEPT_FLUSH, 1'b1);
-        end else if (mdu_e & ~mdu_valid) begin
+        end
+        
+        else if (agu_e & agu_misalign) begin
+            next_instr = compose_issued_instr(i_instr.pc, i_instr.decode, agu_ld ? `EXCEPT_LOAD_MISALIGN(agu_data) : `EXCEPT_STORE_MISALIGN(agu_data), 1'b1);
+        end
+        
+        else if (mdu_e & ~mdu_valid) begin
             next_instr = compose_issued_instr(i_instr.pc, i_instr.decode, i_instr.except, 1'b0);
-        end else begin
+        end
+        
+        else if (sys_e & trap) begin
+            next_instr = compose_issued_instr(i_instr.pc, i_instr.decode, `EXCEPT_TRAP, 1'b1);
+        end else if (sys_e & bad_csr) begin
+            next_instr = compose_issued_instr(i_instr.pc, i_instr.decode, `EXCEPT_INVALID_INSTR(32'b0), 1'b1);
+        end else if (sys_e) begin
+            next_instr = compose_issued_instr(i_instr.pc, i_instr.decode, `EXCEPT_SYS, 1'b1);
+        end
+        
+        else begin
             next_instr = i_instr;
+        end
+    end
+    
+    /*
+     * Except
+     */
+    logic   in_except;
+    
+    always_ff @ (posedge i_clk) begin
+        if (~i_rst_n | i_flush) begin
+            in_except <= '0;
+        end
+        
+        else if (~i_stall & next_instr.valid & next_instr.except.valid) begin
+            in_except <= 1'b1;
         end
     end
     
@@ -156,20 +239,31 @@ module execute (
     assign o_stall = i_stall | (mdu_e & ~mdu_valid);
     
     always_ff @ (posedge i_clk) begin
-        if (~i_rst_n || i_flush) begin
+        if (~i_rst_n | i_flush) begin
             o_instr <= '0;
             o_data <= '0;
             o_data_rs2 <= '0;
         end
         
         else if (~i_stall) begin
-            o_instr <= next_instr;
-            o_data <= next_data;
-            o_data_rs2 <= i_data_rs2;
+            if (in_except) begin
+                o_instr <= compose_issued_instr(i_instr.pc, i_instr.decode, `EXCEPT_NONE, 1'b0);
+                
+                if (i_log_fd != '0) begin
+                    $fdisplay(i_log_fd, "[EXE] Valid: %d, PC @ %h, Waiting for pipeline flush",
+                              0, i_instr.pc);
+                end
+            end
             
-            if (i_log_fd != '0) begin
-                $fdisplay(i_log_fd, "[EXE] Valid: %d, PC @ %h, Decode: %h, RS1: %h, RS2: %h, IMM: %h, RD: %h, Mispred: %d",
-                          i_instr.valid, i_instr.pc, i_instr.decode, src1, src2, imm, next_data, bru_mispred);
+            else begin
+                o_instr <= next_instr;
+                o_data <= next_data;
+                o_data_rs2 <= i_data_rs2;
+                
+                if (i_log_fd != '0) begin
+                    $fdisplay(i_log_fd, "[EXE] Valid: %d, PC @ %h, Decode: %h, RS1: %h, RS2: %h, IMM: %h, RD: %h, Mispred: %d",
+                              i_instr.valid, i_instr.pc, i_instr.decode, src1, src2, imm, next_data, bru_mispred);
+                end
             end
         end
     end

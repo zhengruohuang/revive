@@ -33,6 +33,10 @@ RtlSimDriver::handleFetch()
 inline void
 RtlSimDriver::handleLSU()
 {
+    if (top->revive->lsu->op_ignore) {
+        return;
+    }
+    
     if (top->revive->lsu->is_mem_op) {
         uint32_t addr = top->revive->lsu->addr;
         int op = top->revive->lsu->op;
@@ -126,14 +130,7 @@ RtlSimDriver::startup()
     // Open output files
     const char *commit_filename = cmd->get("commit_file")->valueString;
     if (strcmp(commit_filename, "none")) {
-        if (!strcmp(commit_filename, "stdout")) {
-            commitf = stdout;
-        } else if (!strcmp(commit_filename, "stderr")) {
-            commitf = stderr;
-        } else {
-            commitf = openOutputFile(commit_filename);
-        }
-        
+        commitf = openOutputFile(commit_filename);
         if (!commitf) {
             return -1;
         }

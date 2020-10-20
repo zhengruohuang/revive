@@ -402,7 +402,7 @@ module instr_field_decoder (
             7'b1110011: begin
                 // CSR
                 if (opfunc != 3'b000) begin
-                    fields.unit = UNIT_CSR;
+                    fields.unit = UNIT_SYS;
                     fields.op_size = '0;
                     fields.rd = compose_int_reg_sel(rd, 1'b1);
                     fields.rd_sel = RD_REG;
@@ -414,9 +414,9 @@ module instr_field_decoder (
                     fields.serialize = 1'b0;
                     
                     case (opfunc[1:0])
-                        2'b01: fields.op = OP_CSR_SWAP;
-                        2'b10: fields.op = OP_CSR_READ_SET;
-                        2'b11: fields.op = OP_CSR_READ_CLEAR;
+                        2'b01: fields.op = OP_SYS_CSR_SWAP;
+                        2'b10: fields.op = OP_SYS_CSR_READ_SET;
+                        2'b11: fields.op = OP_SYS_CSR_READ_CLEAR;
                         default: begin
                             fields = `NOP_DECODE;
                             unknown = 1'b1; // unknown
@@ -426,23 +426,89 @@ module instr_field_decoder (
                 
                 // SFENCE.WMA
                 else if (opfext == 7'b0001001) begin
-                    fields = `NOP_DECODE;
-                    unknown = 1'b1; // unknown
+                    fields.unit = UNIT_SYS;
+                    fields.op = OP_SYS_FENCE_VMA;
+                    fields.op_size = '0;
+                    fields.rd = `INVALID_REG;
+                    fields.rd_sel = RD_NONE;
+                    fields.rs1 = compose_int_reg_sel(rs1, 1'b1);
+                    fields.rs1_sel = RS_REG;
+                    fields.rs2 = compose_int_reg_sel(rs2, 1'b1);
+                    fields.rs2_sel = RS_REG;
+                    fields.imm = '0;
+                    fields.serialize = 1'b0;
                 end
                 
                 // WFI
-                else if (opfext == 7'b0001000) begin
-                    fields = `NOP_DECODE;
-                    unknown = 1'b1; // unknown
+                else if (imm_i[11:0] == 12'b000100000101) begin
+                    fields.unit = UNIT_SYS;
+                    fields.op = OP_SYS_WFI;
+                    fields.op_size = '0;
+                    fields.rd = `INVALID_REG;
+                    fields.rd_sel = RD_NONE;
+                    fields.rs1 = `INVALID_REG;
+                    fields.rs1_sel = RS_NONE;
+                    fields.rs2 = `INVALID_REG;
+                    fields.rs2_sel = RS_NONE;
+                    fields.imm = '0;
+                    fields.serialize = 1'b0;
                 end
                 
                 // Trap-RET
                 else if (imm_i[4:0] == 5'b00010) begin
-                    fields = `NOP_DECODE;
-                    unknown = 1'b1; // unknown
+                    fields.unit = UNIT_SYS;
+                    fields.op_size = '0;
+                    fields.rd = `INVALID_REG;
+                    fields.rd_sel = RD_NONE;
+                    fields.rs1 = `INVALID_REG;
+                    fields.rs1_sel = RS_NONE;
+                    fields.rs2 = `INVALID_REG;
+                    fields.rs2_sel = RS_NONE;
+                    fields.imm = '0;
+                    fields.serialize = 1'b0;
+                    
+                    case (opfext[4:3])
+                        //2'b00: fields.op = OP_SYS_URET;
+                        2'b01: fields.op = OP_SYS_SRET;
+                        2'b11: fields.op = OP_SYS_MRET;
+                        default: begin
+                            fields = `NOP_DECODE;
+                            unknown = 1'b1; // unknown
+                        end
+                    endcase
                 end
                 
-                // ECALL/EBREAK
+                // EBREAK
+                else if (imm_i[11:0] == 12'b1) begin
+                    fields.unit = UNIT_SYS;
+                    fields.op = OP_SYS_EBREAK;
+                    fields.op_size = '0;
+                    fields.rd = `INVALID_REG;
+                    fields.rd_sel = RD_NONE;
+                    fields.rs1 = `INVALID_REG;
+                    fields.rs1_sel = RS_NONE;
+                    fields.rs2 = `INVALID_REG;
+                    fields.rs2_sel = RS_NONE;
+                    fields.imm = '0;
+                    fields.serialize = 1'b0;
+                end
+                
+                // ECALL
+                else if (imm_i[11:0] == 12'b0) begin
+                    fields.unit = UNIT_SYS;
+                    fields.op = OP_SYS_ECALL;
+                    fields.op_size = '0;
+                    fields.rd = `INVALID_REG;
+                    fields.rd_sel = RD_NONE;
+                    fields.rs1 = `INVALID_REG;
+                    fields.rs1_sel = RS_NONE;
+                    fields.rs2 = `INVALID_REG;
+                    fields.rs2_sel = RS_NONE;
+                    fields.imm = '0;
+                    fields.serialize = 1'b0;
+                end
+                
+                // Unknown
                 else begin
                     fields = `NOP_DECODE;
                     unknown = 1'b1; // unknown

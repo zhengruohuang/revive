@@ -7,6 +7,7 @@ module branch_unit (
     input                           i_e,
     input   decode_bru_op_t         i_op,
     input                           i_invert,
+    input                           i_isa_c,
     
     input   program_counter_t       i_pc,
     input                           i_compressed,
@@ -15,7 +16,8 @@ module branch_unit (
     input   reg_data_t              i_offset,
     
     output  program_counter_t       o_dest_pc,
-    output                          o_taken
+    output                          o_taken,
+    output                          o_misalign
 );
 
     // Cond met
@@ -28,24 +30,12 @@ module branch_unit (
         
         else begin
             case (i_op)
-                OP_BRU_BEQ: begin
-                    cond_met = i_src1 == i_src2;
-                end
-                OP_BRU_BLT: begin
-                    cond_met = $signed(i_src1) < $signed(i_src2);
-                end
-                OP_BRU_BLTU: begin
-                    cond_met = i_src1 < i_src2;
-                end
-                OP_BRU_JAL: begin
-                    cond_met = 1'b1;
-                end
-                OP_BRU_JALR: begin
-                    cond_met = 1'b1;
-                end
-                default: begin
-                    cond_met = 1'b0;
-                end
+                OP_BRU_BEQ: cond_met = i_src1 == i_src2;
+                OP_BRU_BLT: cond_met = $signed(i_src1) < $signed(i_src2);
+                OP_BRU_BLTU:cond_met = i_src1 < i_src2;
+                OP_BRU_JAL: cond_met = 1'b1;
+                OP_BRU_JALR:cond_met = 1'b1;
+                default:    cond_met = 1'b0;
             endcase
             
             if (i_log_fd != '0) begin
@@ -64,9 +54,12 @@ module branch_unit (
     wire    program_counter_t   ntaken_pc = i_compressed ? i_pc + 32'h2 : i_pc + 32'h4;
     wire    program_counter_t   dest_pc = taken ? taken_pc : ntaken_pc;
     
+    wire                        misalign = ~i_isa_c & dest_pc[1];
+    
     // Output
-    assign o_dest_pc = dest_pc;
-    assign o_taken   = taken;
+    assign o_dest_pc    = { dest_pc[31:1], 1'b0 };
+    assign o_taken      = taken;
+    assign o_misalign   = misalign;
 
 endmodule
 

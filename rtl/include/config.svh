@@ -14,7 +14,7 @@
 `define INSTR_WIDTH_BITS    5
 
 `define VADDR_WIDTH         32
-`define PADDR_WIDTH         32
+`define PADDR_WIDTH         34
 `define PC_WIDTH            32
 
 /*
@@ -22,7 +22,7 @@
  */
 `define PAGE_SIZE           4096
 `define PAGE_SIZE_BITS      12
-`define ASID_WIDTH          12
+`define ASID_WIDTH          9
 
 `define CACHELINE_SIZE          32      // In bytes
 `define CACHELINE_SIZE_BITS     5

@@ -2,18 +2,18 @@
 `include "include/instr.svh"
 
 module mul_div_unit (
-    input                       i_flush,
-    input                       i_stall,
+    input                           i_flush,
+    input                           i_stall,
     
-    input                       i_e,
-    input   decode_alu_op_t     i_op,
-    input                       i_w32,
+    input                           i_e,
+    input   decode_alu_op_t         i_op,
+    input                           i_w32,
     
-    input   reg_data_t          i_src1,
-    input   reg_data_t          i_src2,
+    input   reg_data_t              i_src1,
+    input   reg_data_t              i_src2,
     
-    output  logic               o_valid,
-    output  reg_data_t          o_dest,
+    output  logic                   o_valid,
+    output  reg_data_t              o_dest,
     
     input   [31:0] i_log_fd,
     

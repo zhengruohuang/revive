@@ -24,6 +24,13 @@ SimulatedMachine *getMachine()
 
 
 /*
+ * Log
+ */
+FILE *logFile = nullptr;
+int logLevel = 0;
+
+
+/*
  * In/Output files
  */
 bool openInputFile(const char *name, std::ifstream &fs)
@@ -54,7 +61,13 @@ FILE *openInputFile(const char *name, const char *mode)
 {
     std::cout << "[SIM] Open input file @ " << name << std::endl;
     
-    FILE *f = fopen(name, mode);
+    FILE *f = nullptr;
+    if (!strcmp(name, "stdin")) {
+        f = stdin;
+    } else {
+        f = fopen(name, mode);
+    }
+    
     return f;
 }
 
@@ -62,7 +75,17 @@ FILE *openOutputFile(const char *name, const char *mode)
 {
     std::cout << "[SIM] Open output file @ " << name << std::endl;
     
-    FILE *f = fopen(name, mode);
+    FILE *f = nullptr;
+    if (!strcmp(name, "stdout")) {
+        f = stdout;
+    } else if (!strcmp(name, "stderr")) {
+        f = stderr;
+    } else if (!strcmp(name, "stdlog")) {
+        f = logFile ? logFile : fopen("/dev/null", "w");
+    } else {
+        f = fopen(name, mode);
+    }
+    
     return f;
 }
 
@@ -106,13 +129,6 @@ static void sigintHandler(int sig_num)
 
 
 /*
- * Log
- */
-FILE *logFile = nullptr;
-int logLevel = 0;
-
-
-/*
  * Main
  */
 int main(int argc, char **argv)
@@ -126,15 +142,7 @@ int main(int argc, char **argv)
     const char *log_filename = cmd->get("log_file")->valueString;
     if (strcmp(log_filename, "none")) {
         logLevel = cmd->get("log_level")->valueInt;
-        
-        if (!strcmp(log_filename, "stdout")) {
-            logFile = stdout;
-        } else if (!strcmp(log_filename, "stderr")) {
-            logFile = stderr;
-        } else {
-            logFile = openOutputFile(log_filename, "w");
-        }
-        
+        logFile = openOutputFile(log_filename, "w");
         if (!logFile) {
             std::cerr
                 << "[SIM] Unable to open log file @ " << log_filename
