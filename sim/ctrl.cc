@@ -1,7 +1,7 @@
 #include <iostream>
 #include <iomanip>
-#include <fstream>
 #include <cstdint>
+#include <cstring>
 #include <map>
 #include <sys/mman.h>
 #include "sim.hh"
@@ -11,8 +11,11 @@
 
 SimulationControl::SimulationControl(const char *name, ArgParser *cmd,
                                      uint64_t start, uint64_t size)
-    : AddressRange(name, cmd)
+    : AddressRange(name, cmd), outf(nullptr), dumpf(nullptr)
 {
+    cmd->addString("simctrl_out", "", "--ctrl-out", "target/out.txt");
+    cmd->addString("simctrl_dump", "", "--ctrl-dump", "target/dump.txt");
+    
     setRange(start, size);
     store = mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     
@@ -40,12 +43,20 @@ SimulationControl::~SimulationControl()
 int
 SimulationControl::startup()
 {
-    if (!openOutputFile("target/out.txt", out)) {
-        return -1;
+    const char *out_filename = cmd->get("simctrl_out")->valueString;
+    if (strcmp(out_filename, "none")) {
+        outf = openOutputFile(out_filename);
+        if (!outf) {
+            return -1;
+        }
     }
     
-    if (!openOutputFile("target/dump.txt", dump)) {
-        return -1;
+    const char *dump_filename = cmd->get("simctrl_dump")->valueString;
+    if (strcmp(dump_filename, "none")) {
+        dumpf = openOutputFile(dump_filename);
+        if (!dumpf) {
+            return -1;
+        }
     }
     
     return 0;
@@ -56,8 +67,13 @@ SimulationControl::cleanup()
 {
     displayPseudoOut();
     
-    out.close();
-    dump.close();
+    if (outf) {
+        fclose(outf);
+    }
+    
+    if (dumpf) {
+        fclose(dumpf);
+    }
     
     return 0;
 }
@@ -113,10 +129,18 @@ SimulationControl::write_atomic(uint64_t addr, int size, uint64_t data)
     
     switch (offset) {
     case 0x1000 + 0x4: // stdout
-        out << (char)data << std::flush;
+        if (outf) {
+            fprintf(outf, "%c", (char)data);
+            fflush(outf);
+        }
+        //out << (char)data << std::flush;
         return;
     case 0x1000 + 0x8: // stderr
-        out << (char)data << std::flush;
+        if (outf) {
+            fprintf(outf, "%c", (char)data);
+            fflush(outf);
+        }
+        //out << (char)data << std::flush;
         return;
     case 0x1000 + 0xc: // terminate
         getMachine()->terminate((uint32_t)data);
@@ -195,8 +219,11 @@ SimulationControl::dumpData()
         PhysicalAddressSpace *as = mach->getPhysicalAddressSpace();
         
         uint64_t word = as->read_atomic(addr, 4);
-        dump << std::hex << std::setfill('0') << std::setw(8)
-            << word << std::dec << std::endl;
+        if (dumpf) {
+            fprintf(dumpf, "%08lx\n", word);
+        }
+        //dump << std::hex << std::setfill('0') << std::setw(8)
+        //    << word << std::dec << std::endl;
     }
 }
 

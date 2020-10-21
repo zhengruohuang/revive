@@ -19,8 +19,10 @@
 
 UniAsyncRxTx::UniAsyncRxTx(const char *name, ArgParser *cmd, int uart_idx,
                            uint64_t start, uint64_t size)
-    : AddressRange(name, cmd)
+    : AddressRange(name, cmd), outf(nullptr)
 {
+    cmd->addString("uart_out", "", "--uart-out", "target/uart.txt");
+    
     setRange(start, size);
     
     rxbufIdxRd = rxbufIdxWr = 0;
@@ -41,8 +43,12 @@ UniAsyncRxTx::~UniAsyncRxTx()
 int
 UniAsyncRxTx::startup()
 {
-    if (!openOutputFile("target/uart.txt", out)) {
-        return -1;
+    const char *out_filename = cmd->get("uart_out")->valueString;
+    if (strcmp(out_filename, "none")) {
+        outf = openOutputFile(out_filename);
+        if (!outf) {
+            return -1;
+        }
     }
     
     signal(SIGPIPE, SIG_IGN);
@@ -66,7 +72,11 @@ UniAsyncRxTx::cleanup()
     close(fdTx);
     close(fdRx);
     signal(SIGINT, SIG_DFL);
-    out.close();
+    
+    if (outf) {
+        fclose(outf);
+    }
+    
     return 0;
 }
 
@@ -105,7 +115,11 @@ UniAsyncRxTx::write_atomic(uint64_t addr, int size, uint64_t data)
     
     if (offset == UART_DATA) {
         char ch = (char)data;
-        out << ch << std::flush;
+        if (outf) {
+            fprintf(outf, "%c", ch);
+            fflush(outf);
+        }
+        //out << ch << std::flush;
         //std::cout << ch << std::flush;
         if (txbufIdxWr - txbufIdxRd >= TXBUF_SIZE) {
             txbufIdxRd++;

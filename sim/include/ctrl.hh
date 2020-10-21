@@ -2,7 +2,7 @@
 #define __CTRL_HH__
 
 
-#include <fstream>
+#include <cstdio>
 #include <cstdint>
 #include "as.hh"
 
@@ -10,10 +10,10 @@
 class SimulationControl: public AddressRange
 {
 private:
-    void *store;
+    FILE *outf;
+    FILE *dumpf;
     
-    std::ofstream out;
-    std::ofstream dump;
+    void *store;
     
     static const int numPseudoIOEntries = 32;
     struct PseudoOutput

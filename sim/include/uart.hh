@@ -2,6 +2,7 @@
 #define __UniAsyncRxTx_HH__
 
 
+#include <cstdio>
 #include <vector>
 #include <atomic>
 #include <thread>
@@ -13,7 +14,7 @@ class UniAsyncRxTx: public AddressRange
 private:
     const uint64_t UART_DATA = 0;
     
-    std::ofstream out;
+    FILE *outf;
     
     static const uint64_t RXBUF_SIZE = 16384;
     char rxbuf[RXBUF_SIZE];
