@@ -10,6 +10,7 @@
 #include "Vrevive.h"
 #include "Vrevive_revive.h"
 #include "Vrevive_fetch.h"
+#include "Vrevive_execute.h"
 #include "Vrevive_ldst_unit.h"
 
 
@@ -18,6 +19,10 @@ class RtlSimDriver: public SimDriver
 private:
     Vrevive *top;
     FILE *commitf;
+    
+    bool translateVaddr(uint64_t vaddr, bool read, bool write, bool exec,
+                        bool trans, int priv, uint64_t base_ppn,
+                        uint64_t &paddr);
     
     void handleFetch();
     void handleLSU();

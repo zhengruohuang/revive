@@ -23,6 +23,7 @@ typedef struct packed {
     logic               isa_c;
     logic               trans;
     asid_t              asid;
+    logic [21:0]        base;
 } program_state_t;
 
 

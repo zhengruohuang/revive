@@ -23,7 +23,7 @@ typedef enum logic [4:0] {
     EXCEPT_RESERVED2,
     EXCEPT_STORE_PAGE_FAULT,
     
-    NUM_STD_EXCEPTS,
+    NUM_STD_EXCEPTS = 5'b10000,
     
     EXCEPT_NONE,
     EXCEPT_MISPRED,
@@ -41,10 +41,15 @@ typedef struct packed {
     logic           valid;
 } except_t;
 
-`define EXCEPT_PC_MISALIGN(tval)    { EXCEPT_PC_MISALIGN, tval, 1'b1 }
-`define EXCEPT_INVALID_INSTR(tval)  { EXCEPT_UNKNOW_INSTR, tval, 1'b1 }
-`define EXCEPT_LOAD_MISALIGN(tval)  { EXCEPT_LOAD_MISALIGN, tval, 1'b1 }
-`define EXCEPT_STORE_MISALIGN(tval) { EXCEPT_STORE_MISALIGN, tval, 1'b1 }
+`define IS_STD_EXCEPT_CODE(code)    (~code[4])
+
+`define EXCEPT_PC_MISALIGN(tval)        { EXCEPT_PC_MISALIGN, tval, 1'b1 }
+`define EXCEPT_INVALID_INSTR(tval)      { EXCEPT_UNKNOW_INSTR, tval, 1'b1 }
+`define EXCEPT_LOAD_MISALIGN(tval)      { EXCEPT_LOAD_MISALIGN, tval, 1'b1 }
+`define EXCEPT_STORE_MISALIGN(tval)     { EXCEPT_STORE_MISALIGN, tval, 1'b1 }
+`define EXCEPT_ITLB_PAGE_FAULT(tval)    { EXCEPT_ITLB_PAGE_FAULT, tval, 1'b1 }
+`define EXCEPT_LOAD_PAGE_FAULT(tval)    { EXCEPT_LOAD_PAGE_FAULT, tval, 1'b1 }
+`define EXCEPT_STORE_PAGE_FAULT(tval)   { EXCEPT_STORE_PAGE_FAULT, tval, 1'b1 }
 
 `define EXCEPT_NONE             { EXCEPT_NONE, 32'b0, 1'b0 }
 `define EXCEPT_MISPRED          { EXCEPT_MISPRED, 32'b0, 1'b1 }

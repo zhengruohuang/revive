@@ -15,7 +15,7 @@ module program_state (
     input   i_rst_n
 );
 
-    assign  o_ps = { i_priv, i_isa_c, i_satp[31], i_satp[30:22] };
+    assign  o_ps = { i_priv, i_isa_c, i_satp[31], i_satp[30:22], i_satp[21:0] };
 
 endmodule
 

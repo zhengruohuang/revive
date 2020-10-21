@@ -81,7 +81,7 @@ module execute (
         .i_e        (agu_e),
         .i_op       (i_instr.decode.op.mem),
         .i_src1     (src1),
-        .i_offset   (imm),
+        .i_offset   (i_instr.decode.unit == UNIT_AMO ? '0 : imm),
         .i_size     (i_instr.decode.op_size),
         .o_dest     (agu_data),
         .o_ld       (agu_ld),
@@ -221,7 +221,7 @@ module execute (
     /*
      * Except
      */
-    logic   in_except;
+    logic   in_except/*verilator public*/;
     
     always_ff @ (posedge i_clk) begin
         if (~i_rst_n | i_flush) begin

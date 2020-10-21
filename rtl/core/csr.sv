@@ -133,12 +133,12 @@ module ctrl_status_reg (
     wire    logic   [31:0]  mimpid = '0;
     wire    logic   [31:0]  mhartid = '0;
     
-    wire    next_except = i_instr.valid & i_instr.except.valid &
-                          i_instr.except.code != EXCEPT_MISPRED &
-                          i_instr.except.code != EXCEPT_FLUSH &
-                          i_instr.except.code != EXCEPT_TRAP &
-                          i_instr.except.code != EXCEPT_INTERRUPT &
-                          i_instr.except.code != EXCEPT_SYS;
+    wire    next_except = i_instr.valid & i_instr.except.valid & `IS_STD_EXCEPT_CODE(i_instr.except.code);
+//                          i_instr.except.code != EXCEPT_MISPRED &
+//                          i_instr.except.code != EXCEPT_FLUSH &
+//                          i_instr.except.code != EXCEPT_TRAP &
+//                          i_instr.except.code != EXCEPT_INTERRUPT &
+//                          i_instr.except.code != EXCEPT_SYS;
     wire    next_trap   = i_instr.valid & i_instr.except.valid & i_instr.except.code == EXCEPT_TRAP;
     wire    next_int    = i_instr.valid & i_instr.except.valid & i_instr.except.code == EXCEPT_INTERRUPT;
     wire    next_csr    = i_instr.valid & i_instr.except.valid & i_instr.except.code == EXCEPT_SYS &
@@ -153,6 +153,17 @@ module ctrl_status_reg (
                                                 priv == PRIV_MODE_SUPERVISOR ? (32'b1 <<  9) :
                                                 priv == PRIV_MODE_USER       ? (32'b1 <<  8) :
                                                                                (32'b1 << 10);
+    
+    wire    logic   [31:0]  std_except_mask =   i_instr.except.code == EXCEPT_PC_MISALIGN       ? (32'b1 << 0) :
+                                              //i_instr.except.code == EXCEPT_PC_ACCESS_FAULT   ? (32'b1 << 1) :
+                                              //i_instr.except.code == EXCEPT_UNKNOW_INSTR      ? (32'b1 << 2) :
+                                                i_instr.except.code == EXCEPT_LOAD_MISALIGN     ? (32'b1 << 4) :
+                                              //i_instr.except.code == EXCEPT_LOAD_ACCESS_FAULT ? (32'b1 << 5) :
+                                                i_instr.except.code == EXCEPT_STORE_MISALIGN    ? (32'b1 << 6) :
+                                              //i_instr.except.code == EXCEPT_STORE_ACCESS_FAULT? (32'b1 << 7) :
+                                                i_instr.except.code == EXCEPT_ITLB_PAGE_FAULT   ? (32'b1 << 12) :
+                                                i_instr.except.code == EXCEPT_LOAD_PAGE_FAULT   ? (32'b1 << 13) :
+                                                i_instr.except.code == EXCEPT_STORE_PAGE_FAULT  ? (32'b1 << 15) : '0;
     
     always_ff @ (posedge i_clk) begin
         if (~i_rst_n) begin
@@ -212,7 +223,7 @@ module ctrl_status_reg (
         // Except
         else if (next_except) begin
             // delegate to S
-            if (((medeleg & 32'b0) != 32'b0) & (priv == PRIV_MODE_SUPERVISOR | priv == PRIV_MODE_USER)) begin
+            if (((medeleg & std_except_mask) != 32'b0) & (priv == PRIV_MODE_SUPERVISOR | priv == PRIV_MODE_USER)) begin
                 sepc <= i_instr.pc;
                 scause <= { 27'b0, i_instr.except.code };
                 stval <= i_instr.except.tval;
@@ -233,7 +244,7 @@ module ctrl_status_reg (
                 o_data <= mtvec;
             end
             
-            $display("PC @ %h, except: %d", i_instr.pc, i_instr.except.code);
+            $display("PC @ %h, except: %d, tval: %h, priv: %d", i_instr.pc, i_instr.except.code, i_instr.except.tval, priv);
         end
         
         // Trap
@@ -249,6 +260,8 @@ module ctrl_status_reg (
                     priv <= PRIV_MODE_SUPERVISOR;
                     o_instr <= gen_jr(i_instr);
                     o_data <= stvec;
+                    
+                    //$display("ecall to S");
                 end
                 
                 // no delegation
@@ -260,6 +273,8 @@ module ctrl_status_reg (
                     priv <= PRIV_MODE_MACHINE;
                     o_instr <= gen_jr(i_instr);
                     o_data <= mtvec;
+                    
+                    //$display("ecall to M");
                 end
             end
             
@@ -283,7 +298,7 @@ module ctrl_status_reg (
                 status <= { status[31:4], status[7], status[2:0] }; // MIE = MPIE
                 priv <= status[12:11]; // priv = MPP
                 
-                $display("mret, priv: %d", status[12:11]);
+                //$display("mret, priv: %d", status[12:11]);
             end
             
             // SRET
@@ -352,10 +367,10 @@ module ctrl_status_reg (
             12'h3f1: { mramend, o_data }  <= update_csr(i_instr.decode.op.sys, mramend, i_data );       // mramend
             
             12'hc00: o_data <= perf_cycles[31:0];   // cycle
-            12'hc01: o_data <= i_mtime[31:0];       // time
+            12'hc01: o_data <= perf_cycles[31:0];   // i_mtime[31:0]; // time
             12'hc02: o_data <= perf_instrs[31:0];   // instret
             12'hc80: o_data <= perf_cycles[63:32];  // cycleh
-            12'hc81: o_data <= i_mtime[63:32];      // timeh
+            12'hc81: o_data <= perf_cycles[63:32];  // i_mtime[63:32]; // timeh
             12'hc82: o_data <= perf_instrs[63:32];  // instreth
             
             12'hf11: o_data <= mvendorid; // mvendorid

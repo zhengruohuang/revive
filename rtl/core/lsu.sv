@@ -23,7 +23,11 @@ module ldst_unit (
     input   i_rst_n
 );
 
-            logic               in_except;
+            logic               in_except/*verilator public*/;
+
+    wire    [7:0]               priv/*verilator public*/            = {  6'b0, i_ps.priv };
+    wire    [7:0]               trans_enabled/*verilator public*/   = {  7'b0, i_ps.trans };
+    wire    [31:0]              trans_base_ppn/*verilator public*/  = { 10'b0, i_ps.base };
 
     wire                        is_mem_op/*verilator public*/   = ~in_except & i_instr.valid & i_instr.decode.unit == UNIT_MEM;
     wire                        is_amo_op/*verilator public*/   = ~in_except & i_instr.valid & i_instr.decode.unit == UNIT_AMO;
@@ -35,6 +39,8 @@ module ldst_unit (
     wire                        op_ignore/*verilator public*/   = i_instr.except.valid;
 
             reg_data_t          ld_data/*verilator public*/;
+            logic               page_fault_ld/*verilator public*/;
+            logic               page_fault_st/*verilator public*/;
 
     /*
      * Output
@@ -49,9 +55,11 @@ module ldst_unit (
         end
         
         else begin
-            o_instr <= i_instr;
+            o_instr <= page_fault_ld ? compose_issued_instr(i_instr.pc, i_instr.decode, `EXCEPT_LOAD_PAGE_FAULT(addr), 1'b1) :
+                       page_fault_st ? compose_issued_instr(i_instr.pc, i_instr.decode, `EXCEPT_STORE_PAGE_FAULT(addr), 1'b1) :
+                       i_instr;
             o_data <= (is_mem_op | is_amo_op) ? ld_data : i_data;
-            if (i_instr.valid & i_instr.except.valid) begin
+            if (i_instr.valid & (i_instr.except.valid | page_fault_ld | page_fault_st)) begin
                 in_except <= 1'b1;
             end
             

@@ -138,6 +138,11 @@ SimulatedMachine::run()
                 << std::endl;
             break;
         }
+        
+//        if (numCycles == 300000000ul) {
+//            logLevel = 1;
+//            logFile = openOutputFile("target/last.txt");
+//        }
     }
     
     // Done

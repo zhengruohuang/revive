@@ -42,6 +42,7 @@ module fetch (
 
             short_instr_t       fetch_data0/*verilator public*/;
             short_instr_t       fetch_data1/*verilator public*/;
+            logic               page_fault/*verilator public*/;
 
     /*
      * Output
@@ -54,7 +55,7 @@ module fetch (
         end
         
         else if (~i_stall) begin
-            o_data <= compose_fetched_data(i_pc, fetch_data0, fetch_data1, `EXCEPT_NONE, valid);
+            o_data <= compose_fetched_data(i_pc, fetch_data0, fetch_data1, page_fault ? `EXCEPT_ITLB_PAGE_FAULT(i_pc) : `EXCEPT_NONE, valid);
             
             if (i_log_fd != '0) begin
                 $fdisplay(i_log_fd, "[IF ] Valid: %d, PC @ %h, Data: %h-%h",
