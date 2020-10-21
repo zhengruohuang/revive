@@ -116,14 +116,19 @@ To run all complex test programs with the RTL model
 make programs
 ```
 
-To build and run everything with RTL model
+To build and run all tests with RTL model
 ```bash
 make
 ```
 
-To run everything with C++ ISA model
+To run all tests with C++ ISA model
 ```bash
 TRACE=1 make
+```
+
+To boot Linux with RTL model
+```bash
+make boot
 ```
 
 To boot Linux with C++ ISA model
