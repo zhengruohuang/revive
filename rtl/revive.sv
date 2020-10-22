@@ -17,7 +17,12 @@ module revive (
     // Init PC
     input   program_counter_t   i_init_pc,
     
-    // mtime
+    // Interrupt
+    input                       i_int_ext,
+    input                       i_int_timer,
+    input                       i_int_soft,
+    
+    // Time
     input   [63:0]              i_mtime,
     
     // Log
@@ -47,6 +52,7 @@ module revive (
     wire    [1:0]               to_ps_priv;
     wire                        to_ps_isa_c;
     wire    reg_data_t          to_ps_satp;
+    wire    reg_data_t          to_ps_status;
     
     wire    program_state_t     from_ps_ps;
     
@@ -54,6 +60,7 @@ module revive (
         .i_priv         (to_ps_priv),
         .i_isa_c        (to_ps_isa_c),
         .i_satp         (to_ps_satp),
+        .i_status       (to_ps_status),
         .o_ps           (from_ps_ps),
         .i_log_fd       (i_log_fd),
         .i_clk          (i_clk),
@@ -275,6 +282,10 @@ module revive (
     wire    [1:0]               from_cr_priv;
     wire                        from_cr_isa_c;
     wire    reg_data_t          from_cr_satp;
+    wire    reg_data_t          from_cr_status;
+    wire    [11:0]              from_cr_intp;
+    wire    [11:0]              from_cr_inte;
+    wire    [11:0]              from_cr_mideleg;
     
     ctrl_status_reg csr (
         .i_flush        (to_cr_flush),
@@ -282,13 +293,17 @@ module revive (
         .i_data         (to_cr_data),
         .o_instr        (from_cr_instr),
         .o_data         (from_cr_data),
-        .i_int_ext      (1'b0),
-        .i_int_timer    (1'b0),
-        .i_int_soft     (1'b0),
+        .i_int_ext      (i_int_ext),
+        .i_int_timer    (i_int_timer),
+        .i_int_soft     (i_int_soft),
         .i_mtime        (i_mtime),
         .o_priv         (from_cr_priv),
         .o_isa_c        (from_cr_isa_c),
         .o_satp         (from_cr_satp),
+        .o_status       (from_cr_status),
+        .o_intp         (from_cr_intp),
+        .o_inte         (from_cr_inte),
+        .o_mideleg      (from_cr_mideleg),
         .i_log_fd       (i_log_fd),
         .i_clk          (i_clk),
         .i_rst_n        (i_rst_n)
@@ -327,6 +342,7 @@ module revive (
     assign  to_ps_priv          = from_cr_priv;
     assign  to_ps_isa_c         = from_cr_isa_c;
     assign  to_ps_satp          = from_cr_satp;
+    assign  to_ps_status        = from_cr_status;
     
     assign  to_pc_stall         = from_if_stall;
     assign  to_pc_flush         = from_wb_flush;

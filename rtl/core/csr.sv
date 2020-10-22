@@ -76,6 +76,12 @@ module ctrl_status_reg (
     output  [1:0]               o_priv,
     output                      o_isa_c,
     output  reg_data_t          o_satp,
+    output  reg_data_t          o_status,
+    
+    // To exec
+    output  [11:0]              o_intp,
+    output  [11:0]              o_inte,
+    output  [11:0]              o_mideleg,
     
     // Log
     input   [31:0] i_log_fd,
@@ -164,6 +170,49 @@ module ctrl_status_reg (
                                                 i_instr.except.code == EXCEPT_ITLB_PAGE_FAULT   ? (32'b1 << 12) :
                                                 i_instr.except.code == EXCEPT_LOAD_PAGE_FAULT   ? (32'b1 << 13) :
                                                 i_instr.except.code == EXCEPT_STORE_PAGE_FAULT  ? (32'b1 << 15) : '0;
+    
+            logic   [31:0]  int_except_mask;
+            logic   [31:0]  int_except_code;
+    
+    always_comb begin
+        if (intp[11] & inte[11]) begin
+            int_except_mask = 32'b1 << 11;
+            int_except_code = 32'd11;
+        end else if (intp[3] & inte[3]) begin
+            int_except_mask = 32'b1 << 3;
+            int_except_code = 32'd3;
+        end else if (intp[7] & inte[7]) begin
+            int_except_mask = 32'b1 << 7;
+            int_except_code = 32'd7;
+        end
+        
+        else if (intp[9] & inte[9]) begin
+            int_except_mask = 32'b1 << 9;
+            int_except_code = 32'd9;
+        end else if (intp[1] & inte[1]) begin
+            int_except_mask = 32'b1 << 1;
+            int_except_code = 32'd1;
+        end else if (intp[5] & inte[5]) begin
+            int_except_mask = 32'b1 << 5;
+            int_except_code = 32'd5;
+        end
+        
+        else if (intp[8] & inte[8]) begin
+            int_except_mask = 32'b1 << 8;
+            int_except_code = 32'd8;
+        end else if (intp[0] & inte[0]) begin
+            int_except_mask = 32'b1 << 0;
+            int_except_code = 32'd0;
+        end else if (intp[4] & inte[4]) begin
+            int_except_mask = 32'b1 << 4;
+            int_except_code = 32'd4;
+        end
+        
+        else begin
+            int_except_mask = '0;
+            int_except_code = '0;
+        end
+    end
     
     always_ff @ (posedge i_clk) begin
         if (~i_rst_n) begin
@@ -325,8 +374,29 @@ module ctrl_status_reg (
         
         // Interrupt
         else if (next_int) begin
-            o_instr <= i_instr;
-            o_data <= i_data;
+            // delegate to S
+            if (((mideleg & int_except_mask) != 32'b0) & (priv == PRIV_MODE_SUPERVISOR | priv == PRIV_MODE_USER)) begin
+                sepc <= i_instr.pc;
+                scause <= { 1'b1, 26'b0, int_except_code[4:0] };
+                stval <= 32'b0;
+                status <= set_status_to_s(status, priv);
+                priv <= PRIV_MODE_SUPERVISOR;
+                o_instr <= gen_jr(i_instr);
+                o_data <= stvec;
+            end
+            
+            // no delegation
+            else begin
+                mepc <= i_instr.pc;
+                mcause <= { 1'b1, 26'b0, int_except_code[4:0] };
+                mtval <= 32'b0;
+                status <= set_status_to_m(status, priv);
+                priv <= PRIV_MODE_MACHINE;
+                o_instr <= gen_jr(i_instr);
+                o_data <= mtvec;
+            end
+            
+            $display("interrupt??");
         end
         
         // CSR instrs
@@ -411,6 +481,10 @@ module ctrl_status_reg (
     assign  o_priv = priv;
     assign  o_isa_c = misa[2];
     assign  o_satp = satp;
+    assign  o_status = status;
+    assign  o_intp = intp[11:0];
+    assign  o_inte = inte[11:0];
+    assign  o_mideleg = mideleg[11:0];
 
 endmodule
 

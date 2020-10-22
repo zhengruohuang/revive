@@ -21,6 +21,8 @@ typedef enum logic [1:0] {
 typedef struct packed {
     priv_mode_t         priv;
     logic               isa_c;
+    logic               mie;
+    logic               sie;
     logic               trans;
     asid_t              asid;
     logic [21:0]        base;

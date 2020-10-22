@@ -39,8 +39,16 @@ public:
     int reset(uint64_t entry);
     int cycle(uint64_t num_cycles);
     
-    void fire(uint32_t type) { }
-    void clear(uint32_t type) { }
+    void fire(uint32_t type) {
+        top->i_int_ext   = (type & (0x1 << 11)) ? 1 : 0;
+        top->i_int_timer = (type & (0x1 <<  7)) ? 1 : 0;
+        top->i_int_soft  = (type & (0x1 <<  3)) ? 1 : 0;
+    }
+    void clear(uint32_t type) {
+        top->i_int_ext   = (type & (0x1 << 11)) ? 0 : 1;
+        top->i_int_timer = (type & (0x1 <<  7)) ? 0 : 1;
+        top->i_int_soft  = (type & (0x1 <<  3)) ? 0 : 1;
+    }
     
     void set_mtime(uint64_t value) { top->i_mtime = value; }
 };
