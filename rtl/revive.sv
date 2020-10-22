@@ -17,6 +17,9 @@ module revive (
     // Init PC
     input   program_counter_t   i_init_pc,
     
+    // mtime
+    input   [63:0]              i_mtime,
+    
     // Log
     input   [31:0] i_log_fd,
     input   [31:0] i_commit_fd,
@@ -282,7 +285,7 @@ module revive (
         .i_int_ext      (1'b0),
         .i_int_timer    (1'b0),
         .i_int_soft     (1'b0),
-        .i_mtime        (64'b0),
+        .i_mtime        (i_mtime),
         .o_priv         (from_cr_priv),
         .o_isa_c        (from_cr_isa_c),
         .o_satp         (from_cr_satp),

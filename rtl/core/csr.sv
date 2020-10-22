@@ -367,16 +367,16 @@ module ctrl_status_reg (
             12'h3f1: { mramend, o_data }  <= update_csr(i_instr.decode.op.sys, mramend, i_data );       // mramend
             
             12'hc00: o_data <= perf_cycles[31:0];   // cycle
-            12'hc01: o_data <= perf_cycles[31:0];   // i_mtime[31:0]; // time
+            12'hc01: o_data <= i_mtime[31:0];       // time
             12'hc02: o_data <= perf_instrs[31:0];   // instret
             12'hc80: o_data <= perf_cycles[63:32];  // cycleh
-            12'hc81: o_data <= perf_cycles[63:32];  // i_mtime[63:32]; // timeh
+            12'hc81: o_data <= i_mtime[63:32];      // timeh
             12'hc82: o_data <= perf_instrs[63:32];  // instreth
             
-            12'hf11: o_data <= mvendorid; // mvendorid
-            12'hf12: o_data <= marchid; // marchid
-            12'hf13: o_data <= mimpid; // mimpid
-            12'hf14: o_data <= mhartid; // mhartid
+            12'hf11: o_data <= mvendorid;   // mvendorid
+            12'hf12: o_data <= marchid;     // marchid
+            12'hf13: o_data <= mimpid;      // mimpid
+            12'hf14: o_data <= mhartid;     // mhartid
             
             default: o_data <= '0;
             endcase

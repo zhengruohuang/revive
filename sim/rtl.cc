@@ -337,6 +337,9 @@ RtlSimDriver::reset(uint64_t entry)
     // Init PC
     top->i_init_pc = (uint32_t)entry;
     
+    // mtime
+    top->i_mtime = 0;
+    
     // Reset
     top->i_rst_n = 0;
     advance();
