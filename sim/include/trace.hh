@@ -132,6 +132,8 @@ public:
     
     void fire(uint32_t type) { state.inthw.value |= type; }
     void clear(uint32_t type) { state.inthw.value &= ~type; }
+    
+    void set_mtime(uint64_t value) { state.perf[1] = value; }
 };
 
 

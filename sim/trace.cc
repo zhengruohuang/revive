@@ -1803,7 +1803,7 @@ TraceSimDriver::fetch(uint32_t &instr, int &size, const bool double_fault)
 TraceSimDriver::TraceSimDriver(const char *name, ArgParser *cmd,
                                SimulatedMachine *mach)
     : SimDriver(name, cmd, mach), commitf(nullptr),
-      numInstrs(0), incomingInterrupts(0)
+      numInstrs(0)
 {
     cmd->addString("commit_file", "-c", "--commit-file", "target/commit.txt");
 }
@@ -1836,7 +1836,6 @@ int
 TraceSimDriver::reset(uint64_t entry)
 {
     numInstrs = 0;
-    incomingInterrupts = 0;
     
     state.pc = entry;
     for (int i = 0; i < 32; i++) {
@@ -1912,9 +1911,8 @@ TraceSimDriver::cycle(uint64_t num_cycles)
     }
     
     // Update counters
-    state.perf[0]++;
-    state.perf[1]++;
-    state.perf[2]++;
+    state.perf[0]++; // cycles
+    state.perf[2]++; // instrs
     
     // Interrupt
     interrupt();

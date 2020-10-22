@@ -13,8 +13,13 @@ CoreLocalInterruptor::CoreLocalInterruptor(const char *name, ArgParser *cmd,
                                            uint64_t start, uint64_t size)
     : AddressRange(name, cmd)
 {
+    cmd->addUInt64("clint_div", "", "--clint-div", 1);
+    
     setRange(start, size);
     mtime = 0;
+    
+    mtime_cnt = 0;
+    mtime_div = cmd->get("clint_div")->valueUInt64;
 }
 
 CoreLocalInterruptor::~CoreLocalInterruptor()
@@ -24,6 +29,7 @@ CoreLocalInterruptor::~CoreLocalInterruptor()
 int
 CoreLocalInterruptor::startup()
 {
+    mtime_cnt = 0;
     return 0;
 }
 
@@ -139,9 +145,21 @@ CoreLocalInterruptor::attachCore(SimDriver *core)
 int
 CoreLocalInterruptor::cycle(uint64_t num_cycles)
 {
-    mtime++;
+    if (!mtime_div) {
+        return 0;
+    } else if (mtime_div == 1) {
+        mtime++;
+    } else {
+        mtime_cnt++;
+        if (mtime_cnt >= mtime_div) {
+            mtime_cnt = 0;
+            mtime++;
+        }
+    }
     
     for (auto &c: slots) {
+        update_mtime(c.core);
+        
         if (c.mtimecmp_enabled && c.mtimecmp <= mtime) {
             fire_mtime(c.core);
             c.mtimecmp_enabled = false;

@@ -35,6 +35,9 @@ private:
     std::vector<CoreTimer> slots;
     uint64_t mtime;
     
+    uint64_t mtime_cnt;
+    uint64_t mtime_div;
+    
     uint64_t read_msip(int idx);
     void write_msip(int idx, uint32_t value);
     
@@ -47,6 +50,8 @@ private:
     
     void fire_mtime(SimDriver *core) { core->fire(SimDriver::INT_MACHINE_TIMER); }
     void clear_mtime(SimDriver *core) { core->clear(SimDriver::INT_MACHINE_TIMER); }
+    
+    void update_mtime(SimDriver *core) { core->set_mtime(mtime); }
 
 public:
     CoreLocalInterruptor(const char *name, ArgParser *cmd, uint64_t start, uint64_t size);

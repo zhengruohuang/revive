@@ -86,6 +86,8 @@ public:
     
     virtual void fire(uint32_t type) = 0;
     virtual void clear(uint32_t type) = 0;
+    
+    virtual void set_mtime(uint64_t value) = 0;
 };
 
 

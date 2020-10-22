@@ -41,6 +41,8 @@ public:
     
     void fire(uint32_t type) { }
     void clear(uint32_t type) { }
+    
+    void set_mtime(uint64_t value) { }
 };
 
 
