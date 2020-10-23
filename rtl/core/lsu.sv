@@ -29,8 +29,8 @@ module ldst_unit (
     wire    [7:0]               trans_enabled/*verilator public*/   = {  7'b0, i_ps.trans };
     wire    [31:0]              trans_base_ppn/*verilator public*/  = { 10'b0, i_ps.base };
 
-    wire                        is_mem_op/*verilator public*/   = ~in_except & i_instr.valid & i_instr.decode.unit == UNIT_MEM;
-    wire                        is_amo_op/*verilator public*/   = ~in_except & i_instr.valid & i_instr.decode.unit == UNIT_AMO;
+    wire                        is_mem_op/*verilator public*/   = ~in_except & i_instr.valid & ~i_instr.except.valid & i_instr.decode.unit == UNIT_MEM;
+    wire                        is_amo_op/*verilator public*/   = ~in_except & i_instr.valid & ~i_instr.except.valid & i_instr.decode.unit == UNIT_AMO;
     wire    reg_data_t          addr/*verilator public*/        = i_data;
     wire    reg_data_t          st_data/*verilator public*/     = i_data_rs2;
     wire    decode_op_t         op/*verilator public*/          = i_instr.decode.op;

@@ -28,6 +28,8 @@ private:
     void handleLSU();
     
     void advance();
+    
+    int int_timer;
 
 public:
     RtlSimDriver(const char *name, ArgParser *cmd, SimulatedMachine *mach);
@@ -40,14 +42,18 @@ public:
     int cycle(uint64_t num_cycles);
     
     void fire(uint32_t type) {
-        top->i_int_ext   = (type & (0x1 << 11)) ? 1 : 0;
-        top->i_int_timer = (type & (0x1 <<  7)) ? 1 : 0;
-        top->i_int_soft  = (type & (0x1 <<  3)) ? 1 : 0;
+        int_timer |= (type & (0x1 <<  7)) ? 1 : 0;
+        
+        top->i_int_ext   |= (type & (0x1 << 11)) ? 1 : 0;
+        top->i_int_timer |= (type & (0x1 <<  7)) ? 1 : 0;
+        top->i_int_soft  |= (type & (0x1 <<  3)) ? 1 : 0;
     }
     void clear(uint32_t type) {
-        top->i_int_ext   = (type & (0x1 << 11)) ? 0 : 1;
-        top->i_int_timer = (type & (0x1 <<  7)) ? 0 : 1;
-        top->i_int_soft  = (type & (0x1 <<  3)) ? 0 : 1;
+        int_timer &= (type & (0x1 <<  7)) ? ~0x1 : ~0x1;
+        
+        top->i_int_ext   &= (type & (0x1 << 11)) ? ~0x1 : ~0x1;
+        top->i_int_timer &= (type & (0x1 <<  7)) ? ~0x1 : ~0x1;
+        top->i_int_soft  &= (type & (0x1 <<  3)) ? ~0x1 : ~0x1;
     }
     
     void set_mtime(uint64_t value) { top->i_mtime = value; }

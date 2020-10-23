@@ -366,7 +366,17 @@ RtlSimDriver::cycle(uint64_t num_cycles)
         handleFetch();
         handleLSU();
         
+        top->i_int_timer = int_timer;
+        
         advance();
+        
+//        if (num_cycles == 35741000ul) {
+//            logLevel = 1;
+//            top->i_log_fd = log_fd;
+//        }
+//        if (num_cycles == 400000000ul) {
+//            top->i_commit_fd = commit_fd;
+//        }
     }
     
     return 0;

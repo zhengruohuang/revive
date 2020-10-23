@@ -122,7 +122,7 @@ module sys_unit (
     wire    valid_csr = valid_num & valid_write & valid_priv;
     
     wire    op_csr  = i_op == OP_SYS_CSR_SWAP | i_op == OP_SYS_CSR_READ_SET | i_op == OP_SYS_CSR_READ_CLEAR;
-    wire    op_trap = i_op == OP_SYS_ECALL | i_op == OP_SYS_EBREAK |
+    wire    op_trap = i_op == OP_SYS_ECALL | i_op == OP_SYS_EBREAK | i_op == OP_SYS_WFI |
                       i_op == OP_SYS_MRET | i_op == OP_SYS_SRET | i_op == OP_SYS_URET;
     
     assign  o_bad_csr = i_e & op_csr & ~valid_csr;

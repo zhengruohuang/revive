@@ -139,7 +139,7 @@ SimulatedMachine::run()
             break;
         }
         
-//        if (numCycles == 300000000ul) {
+//        if (numCycles == 25730000ul) {
 //            logLevel = 1;
 //            logFile = openOutputFile("target/last.txt");
 //        }

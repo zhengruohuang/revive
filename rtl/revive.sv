@@ -217,6 +217,10 @@ module revive (
     wire    reg_data_t          to_ex_data_rs2 = from_rf_data_rs2;
     wire                        from_ex_stall;
     
+    wire    [11:0]              to_ex_intp;
+    wire    [11:0]              to_ex_inte;
+    wire    [11:0]              to_ex_mideleg;
+    
     wire    issued_instr_t      from_ex_instr;
     wire    reg_data_t          from_ex_data;
     wire    reg_data_t          from_ex_data_rs2;
@@ -232,9 +236,9 @@ module revive (
         .o_instr        (from_ex_instr),
         .o_data         (from_ex_data),
         .o_data_rs2     (from_ex_data_rs2),
-        .i_int_ext      (1'b0),
-        .i_int_timer    (1'b0),
-        .i_int_soft     (1'b0),
+        .i_intp         (to_ex_intp),
+        .i_inte         (to_ex_inte),
+        .i_mideleg      (to_ex_mideleg),
         .i_log_fd       (i_log_fd),
         .i_clk          (i_clk),
         .i_rst_n        (i_rst_n)
@@ -368,6 +372,9 @@ module revive (
     
     assign  to_ex_stall         = from_ls_stall;
     assign  to_ex_flush         = from_wb_flush;
+    assign  to_ex_intp          = from_cr_intp;
+    assign  to_ex_inte          = from_cr_inte;
+    assign  to_ex_mideleg       = from_cr_mideleg;
     
     assign  to_ls_flush         = from_wb_flush;
     

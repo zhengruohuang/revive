@@ -845,7 +845,7 @@ TraceSimDriver::interrupt()
     
     // any int to be handled in M?
     uint32_t int_mask_m = int_mask & ~state.csr[0x303];
-    if (int_mask_m &&(state.priv < PRIV_MACHINE || state.status.mie)) {
+    if (int_mask_m && (state.priv < PRIV_MACHINE || state.status.mie)) {
         uint32_t code = findFirstIntCode(int_mask_m);
         state.csr[0x341] = state.pc;
         state.csr[0x342] = 0x80000000 | code;

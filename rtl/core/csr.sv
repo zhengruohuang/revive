@@ -53,6 +53,16 @@ function issued_instr_t gen_jr;
     end
 endfunction
 
+function reg_data_t gen_tvec;
+    input   reg_data_t  base;
+    input               is_int;
+    input   [3:0]       code;
+    begin
+        if (base[1:0] == 2'b00) gen_tvec = base;
+        else                    gen_tvec = { base[31:2], 2'b00 } + { 26'b0, code, 2'b00 };
+    end
+endfunction
+
 module ctrl_status_reg (
     input                       i_flush,
     
@@ -171,49 +181,6 @@ module ctrl_status_reg (
                                                 i_instr.except.code == EXCEPT_LOAD_PAGE_FAULT   ? (32'b1 << 13) :
                                                 i_instr.except.code == EXCEPT_STORE_PAGE_FAULT  ? (32'b1 << 15) : '0;
     
-            logic   [31:0]  int_except_mask;
-            logic   [31:0]  int_except_code;
-    
-    always_comb begin
-        if (intp[11] & inte[11]) begin
-            int_except_mask = 32'b1 << 11;
-            int_except_code = 32'd11;
-        end else if (intp[3] & inte[3]) begin
-            int_except_mask = 32'b1 << 3;
-            int_except_code = 32'd3;
-        end else if (intp[7] & inte[7]) begin
-            int_except_mask = 32'b1 << 7;
-            int_except_code = 32'd7;
-        end
-        
-        else if (intp[9] & inte[9]) begin
-            int_except_mask = 32'b1 << 9;
-            int_except_code = 32'd9;
-        end else if (intp[1] & inte[1]) begin
-            int_except_mask = 32'b1 << 1;
-            int_except_code = 32'd1;
-        end else if (intp[5] & inte[5]) begin
-            int_except_mask = 32'b1 << 5;
-            int_except_code = 32'd5;
-        end
-        
-        else if (intp[8] & inte[8]) begin
-            int_except_mask = 32'b1 << 8;
-            int_except_code = 32'd8;
-        end else if (intp[0] & inte[0]) begin
-            int_except_mask = 32'b1 << 0;
-            int_except_code = 32'd0;
-        end else if (intp[4] & inte[4]) begin
-            int_except_mask = 32'b1 << 4;
-            int_except_code = 32'd4;
-        end
-        
-        else begin
-            int_except_mask = '0;
-            int_except_code = '0;
-        end
-    end
-    
     always_ff @ (posedge i_clk) begin
         if (~i_rst_n) begin
             o_instr <= '0;
@@ -279,7 +246,7 @@ module ctrl_status_reg (
                 status <= set_status_to_s(status, priv);
                 priv <= PRIV_MODE_SUPERVISOR;
                 o_instr <= gen_jr(i_instr);
-                o_data <= stvec;
+                o_data <= gen_tvec(stvec, 1'b0, '0);
             end
             
             // no delegation
@@ -290,7 +257,7 @@ module ctrl_status_reg (
                 status <= set_status_to_m(status, priv);
                 priv <= PRIV_MODE_MACHINE;
                 o_instr <= gen_jr(i_instr);
-                o_data <= mtvec;
+                o_data <= gen_tvec(mtvec, 1'b0, '0);
             end
             
             $display("PC @ %h, except: %d, tval: %h, priv: %d", i_instr.pc, i_instr.except.code, i_instr.except.tval, priv);
@@ -308,7 +275,7 @@ module ctrl_status_reg (
                     status <= set_status_to_s(status, priv);
                     priv <= PRIV_MODE_SUPERVISOR;
                     o_instr <= gen_jr(i_instr);
-                    o_data <= stvec;
+                    o_data <= gen_tvec(stvec, 1'b0, '0);
                     
                     //$display("ecall to S");
                 end
@@ -321,7 +288,7 @@ module ctrl_status_reg (
                     status <= set_status_to_m(status, priv);
                     priv <= PRIV_MODE_MACHINE;
                     o_instr <= gen_jr(i_instr);
-                    o_data <= mtvec;
+                    o_data <= gen_tvec(mtvec, 1'b0, '0);
                     
                     //$display("ecall to M");
                 end
@@ -335,9 +302,18 @@ module ctrl_status_reg (
                 status <= set_status_to_m(status, priv);
                 priv <= PRIV_MODE_MACHINE;
                 o_instr <= gen_jr(i_instr);
-                o_data <= mtvec;
+                o_data <= gen_tvec(mtvec, 1'b0, '0);
                 
                 $display("ebreak");
+            end
+            
+            // WFI
+            else if (i_instr.decode.op.sys == OP_SYS_WFI) begin
+                //o_instr <= compose_decoded_instr(i_instr.pc, `NOP_DECODE, `EXCEPT_NONE, 1'b1);
+                o_instr <= gen_jr(i_instr);
+                o_data <= i_instr.pc + 32'h4;
+                
+                //$display("wfi, intp: %h, inte: %h, status: %h", intp, inte, status);
             end
             
             // MRET
@@ -374,29 +350,29 @@ module ctrl_status_reg (
         
         // Interrupt
         else if (next_int) begin
-            // delegate to S
-            if (((mideleg & int_except_mask) != 32'b0) & (priv == PRIV_MODE_SUPERVISOR | priv == PRIV_MODE_USER)) begin
+            // dest to S
+            if (i_data[31:30] == PRIV_MODE_SUPERVISOR) begin
                 sepc <= i_instr.pc;
-                scause <= { 1'b1, 26'b0, int_except_code[4:0] };
+                scause <= { 1'b1, 27'b0, i_data[3:0] };
                 stval <= 32'b0;
                 status <= set_status_to_s(status, priv);
                 priv <= PRIV_MODE_SUPERVISOR;
                 o_instr <= gen_jr(i_instr);
-                o_data <= stvec;
+                o_data <= gen_tvec(stvec, 1'b1, i_data[3:0]);
             end
             
-            // no delegation
+            // dest to M
             else begin
                 mepc <= i_instr.pc;
-                mcause <= { 1'b1, 26'b0, int_except_code[4:0] };
+                mcause <= { 1'b1, 27'b0, i_data[3:0] };
                 mtval <= 32'b0;
                 status <= set_status_to_m(status, priv);
                 priv <= PRIV_MODE_MACHINE;
                 o_instr <= gen_jr(i_instr);
-                o_data <= mtvec;
+                o_data <= gen_tvec(mtvec, 1'b1, i_data[3:0]);
             end
             
-            $display("interrupt??");
+            $display("interrupt: %d, dest priv: %d, i_data: %h, cycle: %d", i_data[3:0], i_data[31:30], i_data, perf_cycles);
         end
         
         // CSR instrs
@@ -452,6 +428,13 @@ module ctrl_status_reg (
             endcase
             
             o_instr <= i_instr;
+            
+//            if (i_instr.decode.imm.imm20[11:0] == 12'h100 | i_instr.decode.imm.imm20[11:0] == 12'h300) begin
+//            //if (i_instr.pc == 32'hc0025f70 | i_instr.pc == 32'hc0025fa0 | i_instr.pc == 32'hc0025e8c) begin
+//                $display("update status: %h, PC: %h, status: %h, i_data: %h, op: %d, priv: %d",
+//                         update_csr(i_instr.decode.op.sys, status, i_data),
+//                         i_instr.pc, status, i_data, i_instr.decode.op.sys, priv);
+//            end
         end
         
         // Other instrs

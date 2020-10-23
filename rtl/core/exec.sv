@@ -6,6 +6,7 @@
 `include "core/fu/agu.sv"
 `include "core/fu/mdu.sv"
 `include "core/fu/sys.sv"
+`include "core/fu/int.sv"
 
 module execute (
     input                       i_flush,
@@ -23,10 +24,10 @@ module execute (
     output  reg_data_t          o_data,
     output  reg_data_t          o_data_rs2,
     
-    // Interrupt
-    input                       i_int_ext,
-    input                       i_int_timer,
-    input                       i_int_soft,
+    // From CSR
+    input   [11:0]              i_intp,
+    input   [11:0]              i_inte,
+    input   [11:0]              i_mideleg,
     
     // Log
     input   [31:0] i_log_fd,
@@ -169,12 +170,26 @@ module execute (
     /*
      * Interrupt
      */
-    wire                int_e = ~i_stall & (i_int_ext | i_int_timer | i_int_soft);
+    wire                int_e;
+    wire    reg_data_t  int_data;
+    
+    interrupt_unit iu (
+        .i_log_fd       (i_log_fd),
+        .i_stall        (i_stall),
+        .i_valid        (i_instr.valid),
+        .i_intp         (i_intp),
+        .i_inte         (i_inte),
+        .i_mideleg      (i_mideleg),
+        .i_ps           (i_ps),
+        .o_valid        (int_e),
+        .o_data         (int_data)
+    );
     
     /*
      * Next
      */
-    wire    reg_data_t      next_data = alu_e ? alu_data :
+    wire    reg_data_t      next_data = int_e ? int_data :
+                                        alu_e ? alu_data :
                                         agu_e ? agu_data :
                                         bru_e ? bru_data :
                                         mdu_e ? mdu_data :
@@ -251,7 +266,7 @@ module execute (
                 
                 if (i_log_fd != '0) begin
                     $fdisplay(i_log_fd, "[EXE] Valid: %d, PC @ %h, Waiting for pipeline flush",
-                              0, i_instr.pc);
+                              1'b0, i_instr.pc);
                 end
             end
             

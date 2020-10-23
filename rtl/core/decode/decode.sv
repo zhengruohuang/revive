@@ -452,6 +452,18 @@ module instr_field_decoder (
                     fields.rs2_sel = RS_NONE;
                     fields.imm = '0;
                     fields.serialize = 1'b0;
+                    
+//                    fields.unit = UNIT_ALU;
+//                    fields.op = OP_ALU_ADD;
+//                    fields.op_size = '0;
+//                    fields.rd = compose_int_reg_sel(5'b0, 1'b1);;
+//                    fields.rd_sel = RD_REG;
+//                    fields.rs1 = compose_int_reg_sel(5'b0, 1'b1);;
+//                    fields.rs1_sel = RS_REG;
+//                    fields.rs2 = compose_int_reg_sel(5'b0, 1'b1);;
+//                    fields.rs2_sel = RS_REG;
+//                    fields.imm = '0;
+//                    fields.serialize = 1'b0;
                 end
                 
                 // Trap-RET
