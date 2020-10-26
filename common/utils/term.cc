@@ -16,8 +16,9 @@ static int fdRx = -1, fdTx = -1;
 static void asyncRx()
 {
     while (!stop) {
-        fdRx = open("target/uart.pipe2", O_CREAT | O_RDONLY);
+        fdRx = open("target/uart.pipe2", O_RDONLY);
         if (fdRx < 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
         }
         
@@ -37,8 +38,9 @@ static void asyncRx()
 static void asyncTx()
 {
     while (!stop) {
-        fdTx = open("target/uart.pipe1", O_CREAT | O_WRONLY);
+        fdTx = open("target/uart.pipe1", O_WRONLY);
         if (fdTx < 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
         }
         

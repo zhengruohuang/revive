@@ -54,7 +54,13 @@ RegFetch
 
 Execute - ALU/MUL/DIV/AGU
 
-LSU
+Mem 1 - DTLB and DCache Tag
+
+Mem 2 - Match
+
+Mem 3 - DCache Data
+
+System - CSR/Except/Interrupt
 
 Writeback
 
@@ -64,17 +70,19 @@ rtl - The SystemVerilog core source
 
 sim - C++- RTL and functional simulator
 
+sbi - Minimal supervisor binary interface
+
 tests - RISC-V tests
 
 common - Utilities and headers shared by sim and tests
 
 ## Plan
 
-01 - (Active) Working pipeline with simulated arbitrary latency memory, user only
+01 - (Done) Working pipeline with simulated memory, user only
 
-02 - (Planned) Caches
+02 - (Active) Caches
 
-03 - (Planned) Machine, supervisor and user privilege levels
+03 - (Done) Machine, supervisor and user privilege levels
 
 04 - (Planned) Virtual memory
 

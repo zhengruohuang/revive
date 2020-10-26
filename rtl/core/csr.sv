@@ -48,8 +48,9 @@ endfunction
 
 function issued_instr_t gen_jr;
     input issued_instr_t    instr;
+    input except_t          except;
     begin
-        gen_jr = compose_issued_instr(instr.pc, `JR_DECODE(instr.decode.half), `EXCEPT_MISPRED, 1'b1);
+        gen_jr = compose_issued_instr(instr.pc, `JR_DECODE(instr.decode.half), except, 1'b1);
     end
 endfunction
 
@@ -245,7 +246,7 @@ module ctrl_status_reg (
                 stval <= i_instr.except.tval;
                 status <= set_status_to_s(status, priv);
                 priv <= PRIV_MODE_SUPERVISOR;
-                o_instr <= gen_jr(i_instr);
+                o_instr <= gen_jr(i_instr, `EXCEPT_MISPRED_NT);
                 o_data <= gen_tvec(stvec, 1'b0, '0);
             end
             
@@ -256,7 +257,7 @@ module ctrl_status_reg (
                 mtval <= i_instr.except.tval;
                 status <= set_status_to_m(status, priv);
                 priv <= PRIV_MODE_MACHINE;
-                o_instr <= gen_jr(i_instr);
+                o_instr <= gen_jr(i_instr, `EXCEPT_MISPRED_NT);
                 o_data <= gen_tvec(mtvec, 1'b0, '0);
             end
             
@@ -274,7 +275,7 @@ module ctrl_status_reg (
                     stval <= '0;
                     status <= set_status_to_s(status, priv);
                     priv <= PRIV_MODE_SUPERVISOR;
-                    o_instr <= gen_jr(i_instr);
+                    o_instr <= gen_jr(i_instr, `EXCEPT_MISPRED);
                     o_data <= gen_tvec(stvec, 1'b0, '0);
                     
                     //$display("ecall to S");
@@ -287,7 +288,7 @@ module ctrl_status_reg (
                     mtval <= '0;
                     status <= set_status_to_m(status, priv);
                     priv <= PRIV_MODE_MACHINE;
-                    o_instr <= gen_jr(i_instr);
+                    o_instr <= gen_jr(i_instr, `EXCEPT_MISPRED);
                     o_data <= gen_tvec(mtvec, 1'b0, '0);
                     
                     //$display("ecall to M");
@@ -301,7 +302,7 @@ module ctrl_status_reg (
                 mtval <= i_instr.pc;
                 status <= set_status_to_m(status, priv);
                 priv <= PRIV_MODE_MACHINE;
-                o_instr <= gen_jr(i_instr);
+                o_instr <= gen_jr(i_instr, `EXCEPT_MISPRED);
                 o_data <= gen_tvec(mtvec, 1'b0, '0);
                 
                 $display("ebreak");
@@ -310,7 +311,7 @@ module ctrl_status_reg (
             // WFI
             else if (i_instr.decode.op.sys == OP_SYS_WFI) begin
                 //o_instr <= compose_decoded_instr(i_instr.pc, `NOP_DECODE, `EXCEPT_NONE, 1'b1);
-                o_instr <= gen_jr(i_instr);
+                o_instr <= gen_jr(i_instr, `EXCEPT_MISPRED);
                 o_data <= i_instr.pc + 32'h4;
                 
                 //$display("wfi, intp: %h, inte: %h, status: %h", intp, inte, status);
@@ -318,7 +319,7 @@ module ctrl_status_reg (
             
             // MRET
             else if (i_instr.decode.op.sys == OP_SYS_MRET) begin
-                o_instr <= gen_jr(i_instr);
+                o_instr <= gen_jr(i_instr, `EXCEPT_MISPRED);
                 o_data <= mepc & ~(misa[2] ? 32'b01 : 32'b11);
                 status <= { status[31:4], status[7], status[2:0] }; // MIE = MPIE
                 priv <= status[12:11]; // priv = MPP
@@ -328,7 +329,7 @@ module ctrl_status_reg (
             
             // SRET
             else if (i_instr.decode.op.sys == OP_SYS_SRET) begin
-                o_instr <= gen_jr(i_instr);
+                o_instr <= gen_jr(i_instr, `EXCEPT_MISPRED);
                 o_data <= sepc & ~(misa[2] ? 32'b01 : 32'b11);
                 status <= { status[31:2], status[5], status[0] }; // SIE = SPIE
                 priv <= { 1'b0, status[8] }; // priv = SPP
@@ -357,7 +358,7 @@ module ctrl_status_reg (
                 stval <= 32'b0;
                 status <= set_status_to_s(status, priv);
                 priv <= PRIV_MODE_SUPERVISOR;
-                o_instr <= gen_jr(i_instr);
+                o_instr <= gen_jr(i_instr, `EXCEPT_MISPRED_NT);
                 o_data <= gen_tvec(stvec, 1'b1, i_data[3:0]);
             end
             
@@ -368,7 +369,7 @@ module ctrl_status_reg (
                 mtval <= 32'b0;
                 status <= set_status_to_m(status, priv);
                 priv <= PRIV_MODE_MACHINE;
-                o_instr <= gen_jr(i_instr);
+                o_instr <= gen_jr(i_instr, `EXCEPT_MISPRED_NT);
                 o_data <= gen_tvec(mtvec, 1'b1, i_data[3:0]);
             end
             

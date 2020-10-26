@@ -45,10 +45,7 @@ SBI_OBJCOPY = riscv64-linux-gnu-objcopy
 SBI_CINC = -Icommon/include -Isbi
 
 PROGRAM_SRC = tests/programs
-PROGRAM_LIST = towers fib qsort rsort
-ifdef TRACE
-PROGRAM_LIST += clint
-endif
+PROGRAM_LIST = towers fib qsort rsort clint stream random
 PROGRAMS = $(addprefix $(TARGET)/programs/, $(PROGRAM_LIST))
 PROGRAM_CC = riscv64-linux-gnu-gcc
 PROGRAM_CFLAGS = -O2 -g3 -nostdlib -fno-builtin -fno-stack-protector -fno-PIC -mcmodel=medany -march=rv32gc -mabi=ilp32 -std=c99 -Wall
@@ -99,6 +96,10 @@ build_serial: mkdir_target build_utils build_model build_sim build_sbi \
 build_subset: mkdir_target
 	@for target in $(BUILD_SUBSET); do \
 		$(MAKE) -f Makefile.auto --no-print-directory $$target; \
+		if [ ! $$? = 0 ]; then \
+			echo ${COLOR_MSG}[ERROR]${COLOR_NONE} ${BOLD_ON}Target failed: $$target${BOLD_OFF}; \
+			exit 1; \
+		fi; \
 	done;
 
 build: BUILD_SUBSET=build_utils build_model build_sim build_sbi build_test build_program build_compliance
@@ -125,15 +126,20 @@ mkdir_target:
 		mkdir -p $(RAMDISK)/revive/target; \
 	fi
 
-mkfifo_pipes:
+mkfifo_uart:
 	@if [ ! -p "$(TARGET)/uart.pipe1" ]; then mkfifo $(TARGET)/uart.pipe1; fi
 	@if [ ! -p "$(TARGET)/uart.pipe2" ]; then mkfifo $(TARGET)/uart.pipe2; fi
+
+mkfifo_lockstep:
+	@if [ ! -p "$(TARGET)/lockstep.pipe1" ]; then mkfifo $(TARGET)/lockstep.pipe1; fi
+	@if [ ! -p "$(TARGET)/lockstep.pipe2" ]; then mkfifo $(TARGET)/lockstep.pipe2; fi
 
 
 ################################################################################
 # Build utils
 #
-build_utils: mkdir_utils $(TARGET)/utils/bin2c $(TARGET)/utils/term
+build_utils: mkdir_utils $(TARGET)/utils/bin2c $(TARGET)/utils/lockstep \
+             $(TARGET)/utils/term
 
 mkdir_utils:
 	@echo ${COLOR_MSG}[BUILD]${COLOR_NONE} ${BOLD_ON}Building utils${BOLD_OFF}
@@ -143,11 +149,15 @@ $(TARGET)/utils/bin2c: common/utils/bin2c.c
 	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(CC) $(CFLAGS) -o $@ $<
 
+$(TARGET)/utils/lockstep: common/utils/lockstep.c
+	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
+	$(CC) $(CFLAGS) -o $@ $<
+
 $(TARGET)/utils/term: common/utils/term.cc
 	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(CXX) $(CXXFLAGS) -lpthread -o $@ $<
 
-term: $(TARGET)/utils/term mkfifo_pipes
+term: $(TARGET)/utils/term mkfifo_uart
 	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(TARGET)/utils/term
 
@@ -179,8 +189,8 @@ sim: build_subset
 	$(TARGET)/sim/sim $(SIM_FLAGS)
 
 build_sim: mkdir_sim
-	@$(MAKE) -f Makefile.auto -B --no-print-directory depend_sim
-	@$(MAKE) -f Makefile.auto    --no-print-directory binary_sim
+	@$(MAKE) -f Makefile.auto -B --no-print-directory depend_sim && \
+	$(MAKE) -f Makefile.auto    --no-print-directory binary_sim
 
 mkdir_sim:
 	@mkdir -p $(TARGET)/sim
@@ -279,9 +289,14 @@ $(TARGET)/sbi/%.o: sbi/%.c sbi/*.h
 	$(SBI_CC) $(SBI_CFLAGS) $(SBI_CINC) -c -o $@ $<
 
 boot: BUILD_SUBSET=build_utils build_model build_sim build_sbi
-boot: build_subset mkfifo_pipes
+boot: build_subset mkfifo_uart
 	@echo ${COLOR_MSG}[ SIM ]${COLOR_NONE} ${BOLD_ON}Booting${BOLD_OFF};
 	$(TARGET)/sim/sim $(SIM_FLAGS) --kernel $(SBI) --log-file none --log-level 0 --commit-file none
+
+lockstep: BUILD_SUBSET=build_utils build_model build_sim build_sbi
+lockstep: build_subset mkfifo_uart mkfifo_lockstep
+	@echo ${COLOR_MSG}[ SIM ]${COLOR_NONE} ${BOLD_ON}Booting lockstep${BOLD_OFF};
+	$(TARGET)/utils/lockstep
 
 
 ################################################################################
@@ -356,12 +371,12 @@ compliance_serial: build compliance_rv32i compliance_rv32im compliance_rv32imc \
 
 compliance: BUILD_SUBSET=build_utils build_model build_sim build_compliance
 compliance: build_subset
-	@$(MAKE) -f Makefile.auto --no-print-directory --output-sync compliance_rv32i
-	@$(MAKE) -f Makefile.auto --no-print-directory --output-sync compliance_rv32im
-	@$(MAKE) -f Makefile.auto --no-print-directory --output-sync compliance_rv32imc
-	@$(MAKE) -f Makefile.auto --no-print-directory --output-sync compliance_rv32Zifencei
-	@$(MAKE) -f Makefile.auto --no-print-directory --output-sync compliance_rv32Zicsr
-	@$(MAKE) -f Makefile.auto --no-print-directory --output-sync compliance_rv32i_priv
+	@$(MAKE) -f Makefile.auto --no-print-directory --output-sync compliance_rv32i && \
+	 $(MAKE) -f Makefile.auto --no-print-directory --output-sync compliance_rv32im && \
+	 $(MAKE) -f Makefile.auto --no-print-directory --output-sync compliance_rv32imc && \
+	 $(MAKE) -f Makefile.auto --no-print-directory --output-sync compliance_rv32Zifencei && \
+	 $(MAKE) -f Makefile.auto --no-print-directory --output-sync compliance_rv32Zicsr && \
+	 $(MAKE) -f Makefile.auto --no-print-directory --output-sync compliance_rv32i_priv
 
 mkdir_compliance_out:
 	@echo ${COLOR_MSG}[ SIM ]${COLOR_NONE} ${BOLD_ON}Running $(COMPLIANCE_SUBSET) compliance tests${BOLD_OFF};

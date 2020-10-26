@@ -133,8 +133,9 @@ void
 UniAsyncRxTx::asyncRx()
 {
     while (true) {
-        fdRx = open("target/uart.pipe1", O_CREAT | O_RDONLY);
+        fdRx = open("target/uart.pipe1", O_RDONLY);
         if (fdRx < 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
         }
         
@@ -146,7 +147,8 @@ UniAsyncRxTx::asyncRx()
             }
             
             while (rxbufIdxWr - rxbufIdxRd >= RXBUF_SIZE) {
-                std::this_thread::yield();
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                //std::this_thread::yield();
             }
             
             if (cnt && ch) {
@@ -161,8 +163,9 @@ void
 UniAsyncRxTx::asyncTx()
 {
     while (true) {
-        fdTx = open("target/uart.pipe2", O_CREAT | O_WRONLY);
+        fdTx = open("target/uart.pipe2", O_WRONLY);
         if (fdTx < 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
         }
         

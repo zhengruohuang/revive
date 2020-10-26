@@ -27,6 +27,7 @@ typedef enum logic [4:0] {
     
     EXCEPT_NONE,
     EXCEPT_MISPRED,
+    EXCEPT_MISPRED_NO_TRACE,
     EXCEPT_FLUSH,
     EXCEPT_INTERRUPT,
     EXCEPT_TRAP,
@@ -53,6 +54,7 @@ typedef struct packed {
 
 `define EXCEPT_NONE             { EXCEPT_NONE, 32'b0, 1'b0 }
 `define EXCEPT_MISPRED          { EXCEPT_MISPRED, 32'b0, 1'b1 }
+`define EXCEPT_MISPRED_NT       { EXCEPT_MISPRED_NO_TRACE, 32'b0, 1'b1 }
 `define EXCEPT_FLUSH            { EXCEPT_FLUSH, 32'b0, 1'b1 }
 `define EXCEPT_INTERRUPT        { EXCEPT_INTERRUPT, 32'b0, 1'b1 }
 `define EXCEPT_TRAP             { EXCEPT_TRAP, 32'b0, 1'b1 }

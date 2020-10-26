@@ -37,7 +37,8 @@ module writeback (
      */
     wire    program_counter_t   next_seq_pc     = i_instr.pc + (i_instr.decode.half ? 32'h2 : 32'h4);
     wire                        next_except     = ~flushing & i_instr.valid & i_instr.except.valid;
-    wire                        next_pc_in_data = ~flushing & i_instr.valid & i_instr.except.valid & i_instr.except.code == EXCEPT_MISPRED;
+    wire                        next_pc_in_data = ~flushing & i_instr.valid & i_instr.except.valid &
+                                                  (i_instr.except.code == EXCEPT_MISPRED | i_instr.except.code == EXCEPT_MISPRED_NO_TRACE);
     
     wire                        next_pc_alter   = next_except;
     wire    program_counter_t   next_pc         = next_pc_in_data ? i_data : next_seq_pc;
@@ -103,7 +104,14 @@ module writeback (
     end
     
     always_ff @ (posedge i_clk) begin
-        if (i_commit_fd != '0 & ~(~i_rst_n | flushing) & i_instr.valid) begin
+        if (i_commit_fd != '0 & ~(~i_rst_n | flushing) & i_instr.valid &
+            (~i_instr.except.valid | i_instr.except.code == EXCEPT_MISPRED |
+                                     i_instr.except.code == EXCEPT_SYS |
+                                     i_instr.except.code == EXCEPT_FLUSH |
+                                     i_instr.except.code == EXCEPT_ECALL_FROM_M |
+                                     i_instr.except.code == EXCEPT_ECALL_FROM_S |
+                                     i_instr.except.code == EXCEPT_ECALL_FROM_S)
+        ) begin
             instr_count <= instr_count + 64'b1;
             
             $fdisplay(i_commit_fd, "[Cycle %5d] Instr #%5d | PC @ %h | Decode: %h | PC Alter: %d @ %h | WB Valid: %d @ %d = %h",

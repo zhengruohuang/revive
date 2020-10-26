@@ -1206,6 +1206,9 @@ TraceSimDriver::interrupt()
 #define EXECUTE_ECALL() do { \
         int code = ECALL_FROM_U; \
         code += state.priv; \
+        trace(state.pc, encode, \
+              false, 0, \
+              false, 0, 0); \
         log_printf("[ECL] code: %d\n", code); \
         LOG(std::cout \
             << "[ECL] code: " << code \
@@ -1229,6 +1232,9 @@ TraceSimDriver::interrupt()
             if ((from) == PRIV_SUPERVISOR && state.status.tsr) { \
                 EXECUTE_UNKNOWN(encode); \
             } else { \
+                trace(state.pc, encode, \
+                      false, 0, \
+                      false, 0, 0); \
                 log_printf("[RET] priv: %d\n", from); \
                 LOG(std::cout \
                     << "[RET] priv: " << (from) \
