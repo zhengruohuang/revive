@@ -102,7 +102,7 @@ build_subset: mkdir_target
 		fi; \
 	done;
 
-build: BUILD_SUBSET=build_utils build_model build_sim build_sbi build_test build_program build_compliance
+build: BUILD_SUBSET=build_utils build_model build_sim build_vivado build_sbi build_test build_program build_compliance
 build: build_subset
 
 rebuild: clean build
@@ -178,6 +178,22 @@ $(VERILATOR_MODEL_AR): $(TARGET)/rtl/Vrevive.mk
 $(TARGET)/rtl/Vrevive.mk: rtl/*.sv rtl/*/*.sv rtl/*/*.svh rtl/*/*/*.sv
 	@echo -n ${BOLD_ON}$@${BOLD_OFF}" @ "
 	$(VERILATOR) $(VERILATOR_FLAGS) -cc -Mdir $(TARGET)/rtl rtl/revive.sv
+
+
+################################################################################
+# Generate sources for Vivado
+#
+build_vivado: mkdir_vivado $(TARGET)/vivado/top.sv $(TARGET)/vivado/modules.sv
+
+mkdir_vivado:
+	@echo ${COLOR_MSG}[BUILD]${COLOR_NONE} ${BOLD_ON}Building Vivado source files${BOLD_OFF}
+	@mkdir -p $(TARGET)/vivado
+
+$(TARGET)/vivado/top.sv $(TARGET)/vivado/modules.sv: rtl/*.sv rtl/*/*.sv rtl/*/*.svh rtl/*/*/*.sv common/utils/vivado_sv.py
+	@echo -n ${BOLD_ON}$(TARGET)/vivado/preprocessed.sv${BOLD_OFF}" @ "
+	$(VERILATOR) $(VERILATOR_FLAGS) -E --pp-comments -D__FPGA=1 -Mdir $(TARGET)/rtl rtl/revive.sv > $(TARGET)/vivado/preprocessed.sv
+	@echo -n ${BOLD_ON}$(TARGET)/vivado/top.sv, modules.sv${BOLD_OFF}" @ "
+	common/utils/vivado_sv.py $(TARGET)/vivado && rm -f $(TARGET)/vivado/preprocessed.sv
 
 
 ################################################################################

@@ -108,6 +108,7 @@ RtlSimDriver::handleFetch()
 {
     top->revive->ifetch->fetch_data0 = 0;
     top->revive->ifetch->fetch_data1 = 0;
+    top->revive->ifetch->fetch_ready = 1;
     top->revive->ifetch->page_fault = 0;
     
     if (top->revive->ifetch->valid) {

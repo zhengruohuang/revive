@@ -43,6 +43,7 @@ endfunction
 typedef logic [`ITLB_VPN_TAG_WIDTH - 1:0] itlb_tag_t;
 
 typedef struct packed {
+    logic           cached;
     asid_t          asid;
     itlb_tag_t      vpn;
     logic           valid;
@@ -53,10 +54,12 @@ typedef struct packed {
 } itlb_data_entry_t;
 
 function itlb_tag_entry_t compose_itlb_tag_entry;
+    input logic     cached;
     input asid_t    asid;
     input vaddr_t   vaddr;
+    input logic     valid;
     begin
-        compose_itlb_tag_entry = { asid, vaddr[`VADDR_WIDTH - 1:`VADDR_WIDTH - `ITLB_VPN_TAG_WIDTH], 1'b1 };
+        compose_itlb_tag_entry = { cached, asid, vaddr[`VADDR_WIDTH - 1:`VADDR_WIDTH - `ITLB_VPN_TAG_WIDTH], valid };
     end
 endfunction
 

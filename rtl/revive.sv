@@ -3,15 +3,23 @@
 
 `include "core/program_state.sv"
 `include "core/program_counter.sv"
-`include "core/fetch.sv"
+//`include "core/fetch.sv"
 `include "core/align.sv"
 `include "core/decode.sv"
 `include "core/sched.sv"
 `include "core/reg_fetch.sv"
 `include "core/exec.sv"
-`include "core/lsu.sv"
+//`include "core/lsu.sv"
 `include "core/csr.sv"
 `include "core/writeback.sv"
+
+`ifdef __FPGA
+`include "core/fetch_fpga.sv"
+`include "core/lsu_fpga.sv"
+`else
+`include "core/fetch.sv"
+`include "core/lsu.sv"
+`endif
 
 module revive (
     // Init PC

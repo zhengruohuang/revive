@@ -55,20 +55,34 @@ module ldst_unit (
         end
         
         else begin
-            o_instr <= page_fault_ld ? compose_issued_instr(i_instr.pc, i_instr.decode, `EXCEPT_LOAD_PAGE_FAULT(addr), 1'b1) :
-                       page_fault_st ? compose_issued_instr(i_instr.pc, i_instr.decode, `EXCEPT_STORE_PAGE_FAULT(addr), 1'b1) :
-                       i_instr;
-            o_data <= (is_mem_op | is_amo_op) ? ld_data : i_data;
-            if (i_instr.valid & (i_instr.except.valid | page_fault_ld | page_fault_st)) begin
-                in_except <= 1'b1;
-            end
-            
-            if (i_log_fd != '0) begin
-                $fdisplay(i_log_fd, "[LSU] Valid: %d, PC @ %h, Decode: %h, Data: %h, LD Data: %h, RS2: %h",
-                          i_instr.valid, i_instr.pc, i_instr.decode, (is_mem_op | is_amo_op) ? ld_data : i_data, ld_data, i_data_rs2);
-            end
+            o_instr <= i_instr;
+            o_data <= i_data;
+            in_except <= 1'b0;
         end
     end
+    
+//    always_ff @ (posedge i_clk) begin
+//        if (~i_rst_n | i_flush) begin
+//            o_instr <= '0;
+//            o_data <= '0;
+//            in_except <= '0;
+//        end
+//        
+//        else begin
+//            o_instr <= page_fault_ld ? compose_issued_instr(i_instr.pc, i_instr.decode, `EXCEPT_LOAD_PAGE_FAULT(addr), 1'b1) :
+//                       page_fault_st ? compose_issued_instr(i_instr.pc, i_instr.decode, `EXCEPT_STORE_PAGE_FAULT(addr), 1'b1) :
+//                       i_instr;
+//            o_data <= (is_mem_op | is_amo_op) ? ld_data : i_data;
+//            if (i_instr.valid & (i_instr.except.valid | page_fault_ld | page_fault_st)) begin
+//                in_except <= 1'b1;
+//            end
+//            
+//            if (i_log_fd != '0) begin
+//                $fdisplay(i_log_fd, "[LSU] Valid: %d, PC @ %h, Decode: %h, Data: %h, LD Data: %h, RS2: %h",
+//                          i_instr.valid, i_instr.pc, i_instr.decode, (is_mem_op | is_amo_op) ? ld_data : i_data, ld_data, i_data_rs2);
+//            end
+//        end
+//    end
 
 endmodule
 

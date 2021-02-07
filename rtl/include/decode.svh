@@ -113,8 +113,8 @@ typedef union packed {
 
 typedef union packed {
     logic [1:0]     mem_size;
-    logic           w32;
-    logic           invert;
+    logic [1:0]     w32;    // only w32[0] is meaningful
+    logic [1:0]     invert; // only invert[0] is meaningful
 } decode_op_size_t;
 
 typedef struct packed {

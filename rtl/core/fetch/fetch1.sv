@@ -18,10 +18,11 @@ module instr_fetch1 (
     output                      o_valid,
     output  program_counter_t   o_pc,
     
-    // From and to ITLB, ITag, and DTag
+    // From and to ITLB and ICache
     input                       i_itlb_avail,
-    input                       i_icache_tag_avail,
     output                      o_itlb_read,
+    
+    input                       i_icache_tag_avail,
     output                      o_icache_tag_read,
     
     // Log
